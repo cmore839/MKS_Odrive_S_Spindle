@@ -58,7 +58,7 @@ do_not_interpret_as_enum = false
 [var1]
 name = CS1.brake_duty_cycle
 tracked_name = CS1.brake_duty_cycle
-address = 536875800
+address = 536873136
 type = 7
 color = 72284896
 should_update_from_elf = true
@@ -110,7 +110,7 @@ do_not_interpret_as_enum = false
 [var5]
 name = M1.LPF_current_q.Tf
 tracked_name = M1.LPF_current_q.Tf
-address = 536872952
+address = 536872880
 type = 7
 color = 1865338752
 should_update_from_elf = true
@@ -123,7 +123,7 @@ do_not_interpret_as_enum = false
 [var6]
 name = M1.LPF_velocity.Tf
 tracked_name = M1.LPF_velocity.Tf
-address = 536873048
+address = 536872976
 type = 7
 color = 105138300
 should_update_from_elf = true
@@ -136,7 +136,7 @@ do_not_interpret_as_enum = false
 [var7]
 name = M1.PID_current_q.I
 tracked_name = M1.PID_current_q.I
-address = 536872884
+address = 536872812
 type = 7
 color = 4160124274
 should_update_from_elf = true
@@ -149,7 +149,7 @@ do_not_interpret_as_enum = false
 [var8]
 name = M1.PID_current_q.P
 tracked_name = M1.PID_current_q.P
-address = 536872880
+address = 536872808
 type = 7
 color = 304075848
 should_update_from_elf = true
@@ -162,33 +162,33 @@ do_not_interpret_as_enum = false
 [var9]
 name = M1.PID_velocity.I
 tracked_name = M1.PID_velocity.I
-address = 536872980
+address = 536872908
 type = 7
 color = 3437195044
 should_update_from_elf = true
 shift = 0
 mask = 4294967295
 high_level_type = 0
-value_to_write = 2.000000
+value_to_write = 10.000000
 do_not_interpret_as_enum = false
 
 [var10]
 name = M1.PID_velocity.P
 tracked_name = M1.PID_velocity.P
-address = 536872976
+address = 536872904
 type = 7
 color = 1952843741
 should_update_from_elf = true
 shift = 0
 mask = 4294967295
 high_level_type = 0
-value_to_write = 0.020000
+value_to_write = 0.080000
 do_not_interpret_as_enum = false
 
 [var11]
 name = M1.P_angle.I
 tracked_name = M1.P_angle.I
-address = 536873016
+address = 536872944
 type = 7
 color = 3157225415
 should_update_from_elf = true
@@ -201,7 +201,7 @@ do_not_interpret_as_enum = false
 [var12]
 name = M1.P_angle.P
 tracked_name = M1.P_angle.P
-address = 536873012
+address = 536872940
 type = 7
 color = 3896559028
 should_update_from_elf = true
@@ -214,7 +214,7 @@ do_not_interpret_as_enum = false
 [var13]
 name = M1.current_limit
 tracked_name = M1.current_limit
-address = 536872864
+address = 536872792
 type = 7
 color = 1498305597
 should_update_from_elf = true
@@ -227,7 +227,7 @@ do_not_interpret_as_enum = false
 [var14]
 name = M1.shaft_angle
 tracked_name = M1.shaft_angle
-address = 536872784
+address = 536872712
 type = 7
 color = 3194400510
 should_update_from_elf = true
@@ -240,7 +240,7 @@ do_not_interpret_as_enum = false
 [var15]
 name = M1.shaft_velocity
 tracked_name = M1.shaft_velocity
-address = 536872792
+address = 536872720
 type = 7
 color = 3826093364
 should_update_from_elf = true
@@ -253,7 +253,7 @@ do_not_interpret_as_enum = false
 [var16]
 name = M1.velocity_limit
 tracked_name = M1.velocity_limit
-address = 536872868
+address = 536872796
 type = 7
 color = 274289902
 should_update_from_elf = true
@@ -266,7 +266,7 @@ do_not_interpret_as_enum = false
 [var17]
 name = VBUS_S
 tracked_name = VBUS_S
-address = 536876292
+address = 536873072
 type = 7
 color = 1718572558
 should_update_from_elf = true
@@ -362,12 +362,12 @@ format = DEC
 
 [group0-plot0-series2]
 name = current1.b
-visibility = true
+visibility = false
 format = DEC
 
 [group0-plot0-series3]
 name = current1.c
-visibility = true
+visibility = false
 format = DEC
 
 [group0-plot1]

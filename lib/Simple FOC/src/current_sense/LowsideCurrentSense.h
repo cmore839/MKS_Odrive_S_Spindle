@@ -6,49 +6,45 @@
 #include "../common/time_utils.h"
 #include "../common/defaults.h"
 #include "../common/base_classes/CurrentSense.h"
-#include "../common/base_classes/FOCMotor.h"
-#include "../common/base_classes/StepperDriver.h"
-#include "../common/base_classes/BLDCDriver.h"
-#include "../common/lowpass_filter.h"
 #include "hardware_api.h"
-
+#include "stm32f4xx_hal.h"
 
 class LowsideCurrentSense: public CurrentSense{
   public:
-    /**
-      LowsideCurrentSense class constructor
-      @param shunt_resistor shunt resistor value
-      @param gain current-sense op-amp gain
-      @param phA A phase adc pin
-      @param phB B phase adc pin
-      @param phC C phase adc pin (optional)
-    */
+    // Main constructor
+    LowsideCurrentSense(float shunt_resistor, float gain, int pinA, int pinB, int pinC, int pinVbus, float vbus_gain);
+    
+    // Legacy constructors
     LowsideCurrentSense(float shunt_resistor, float gain, int pinA, int pinB, int pinC = _NC);
-    /**
-      LowsideCurrentSense class constructor
-      @param mVpA mV per Amp ratio
-      @param phA A phase adc pin
-      @param phB B phase adc pin
-      @param phC C phase adc pin (optional)
-    */
     LowsideCurrentSense(float mVpA, int pinA, int pinB, int pinC = _NC);
 
-    // CurrentSense interface implementing functions
+    // Core functions
     int init() override;
     PhaseCurrent_s getPhaseCurrents() override;
+    float getVbusVoltage();
+
+    // Feature initialization
+    void initBrakeResistorPWM(int pin, float target_voltage, float p_gain, float i_gain);
+    
+    // Update functions (to be called in loop)
+    void updateBrakeResistor();
+    
+    // Public members for monitoring
+    float brake_duty_cycle = 0.0f;
 
   private:
-
-    // gain variables
-    float shunt_resistor; //!< Shunt resistor value
-    float amp_gain; //!< amp gain value
-    float volts_to_amps_ratio; //!< Volts to amps ratio
-
-    /**
-     *  Function finding zero offsets of the ADC
-     */
     void calibrateOffsets();
 
+    // Member variables
+    int pinA, pinB, pinC;
+    float shunt_resistor, amp_gain, volts_to_amps_ratio;
+    
+    int pinVbus = NOT_SET, vbus_rank = -1;
+    float vbus_gain = 1.0f;
+    
+    int pin_brake_resistor = NOT_SET;
+    TIM_HandleTypeDef brake_timer_handle;
+    float brake_target_voltage = 0, brake_p_gain = 0, brake_i_gain = 0, brake_integrator = 0;
 };
 
 #endif

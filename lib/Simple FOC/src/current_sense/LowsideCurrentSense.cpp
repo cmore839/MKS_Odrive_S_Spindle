@@ -1,76 +1,55 @@
 #include "LowsideCurrentSense.h"
 #include "communication/SimpleFOCDebug.h"
-// LowsideCurrentSensor constructor
-//  - shunt_resistor  - shunt resistor value
-//  - gain  - current-sense op-amp gain
-//  - phA   - A phase adc pin
-//  - phB   - B phase adc pin
-//  - phC   - C phase adc pin (optional)
-LowsideCurrentSense::LowsideCurrentSense(float _shunt_resistor, float _gain, int _pinA, int _pinB, int _pinC){
-    pinA = _pinA;
-    pinB = _pinB;
-    pinC = _pinC;
+#include "hardware_specific/stm32/stm32_mcu.h"
+#include "hardware_specific/stm32/stm32_adc_utils.h"
 
-    shunt_resistor = _shunt_resistor;
-    amp_gain  = _gain;
-    volts_to_amps_ratio = 1.0f /_shunt_resistor / _gain; // volts to amps
-    // gains for each phase
+// Main constructor
+LowsideCurrentSense::LowsideCurrentSense(float _shunt_resistor, float _gain, int _pinA, int _pinB, int _pinC, int _pinVbus, float _vbus_gain)
+    : pinA(_pinA), pinB(_pinB), pinC(_pinC), shunt_resistor(_shunt_resistor), amp_gain(_gain), pinVbus(_pinVbus), vbus_gain(_vbus_gain)
+{
+    volts_to_amps_ratio = 1.0f / _shunt_resistor / _gain;
     gain_a = volts_to_amps_ratio;
     gain_b = volts_to_amps_ratio;
     gain_c = volts_to_amps_ratio;
 }
 
-
-LowsideCurrentSense::LowsideCurrentSense(float _mVpA, int _pinA, int _pinB, int _pinC){
-    pinA = _pinA;
-    pinB = _pinB;
-    pinC = _pinC;
-
-    volts_to_amps_ratio = 1000.0f / _mVpA; // mV to amps
-    // gains for each phase
+// Legacy constructors
+LowsideCurrentSense::LowsideCurrentSense(float _shunt_resistor, float _gain, int _pinA, int _pinB, int _pinC)
+    : LowsideCurrentSense(_shunt_resistor, _gain, _pinA, _pinB, _pinC, NOT_SET, 1.0f)
+{
+}
+LowsideCurrentSense::LowsideCurrentSense(float _mVpA, int _pinA, int _pinB, int _pinC)
+    : pinA(_pinA), pinB(_pinB), pinC(_pinC)
+{
+    volts_to_amps_ratio = 1000.0f / _mVpA;
     gain_a = volts_to_amps_ratio;
     gain_b = volts_to_amps_ratio;
     gain_c = volts_to_amps_ratio;
-}   
+}
 
-
-// Lowside sensor init function
 int LowsideCurrentSense::init(){
+    if (driver==nullptr) return 0;
+    
+    int rank_counter = 0;
+    if (_isset(pinA)) rank_counter++;
+    if (_isset(pinB)) rank_counter++;
+    if (_isset(pinC)) rank_counter++;
+    if (_isset(pinVbus)) vbus_rank = rank_counter;
+    
+    params = _configureADCLowSide(driver->params, pinA, pinB, pinC, pinVbus);
+    if (params == SIMPLEFOC_CURRENT_SENSE_INIT_FAILED) return 0;
 
-    if (driver==nullptr) {
-        SIMPLEFOC_DEBUG("CUR: Driver not linked!");
-        return 0;
-    }
-
-    // configure ADC variables
-    params = _configureADCLowSide(driver->params,pinA,pinB,pinC);
-    // if init failed return fail
-    if (params == SIMPLEFOC_CURRENT_SENSE_INIT_FAILED) return 0; 
-    // sync the driver
     void* r = _driverSyncLowSide(driver->params, params);
-    if(r == SIMPLEFOC_CURRENT_SENSE_INIT_FAILED) return 0; 
-    // set the center pwm (0 voltage vector)
-    if(driver_type==DriverType::BLDC)
-        static_cast<BLDCDriver*>(driver)->setPwm(driver->voltage_limit/2, driver->voltage_limit/2, driver->voltage_limit/2);
-    // calibrate zero offsets
+    if(r == SIMPLEFOC_CURRENT_SENSE_INIT_FAILED) return 0;
+    
     calibrateOffsets();
-    // set zero voltage to all phases
-    if(driver_type==DriverType::BLDC)
-        static_cast<BLDCDriver*>(driver)->setPwm(0,0,0);
-    // set the initialized flag
     initialized = (params!=SIMPLEFOC_CURRENT_SENSE_INIT_FAILED);
-    // return success
     return 1;
 }
-// Function finding zero offsets of the ADC
-void LowsideCurrentSense::calibrateOffsets(){    
-    const int calibration_rounds = 2000;
 
-    // find adc offset = zero current voltage
-    offset_ia = 0;
-    offset_ib = 0;
-    offset_ic = 0;
-    // read the adc voltage 1000 times ( arbitrary number )
+void LowsideCurrentSense::calibrateOffsets(){
+    const int calibration_rounds = 1000;
+    offset_ia=0; offset_ib=0; offset_ic=0;
     for (int i = 0; i < calibration_rounds; i++) {
         _startADC3PinConversionLowSide();
         if(_isset(pinA)) offset_ia += (_readADCVoltageLowSide(pinA, params));
@@ -78,18 +57,70 @@ void LowsideCurrentSense::calibrateOffsets(){
         if(_isset(pinC)) offset_ic += (_readADCVoltageLowSide(pinC, params));
         _delay(1);
     }
-    // calculate the mean offsets
-    if(_isset(pinA)) offset_ia = offset_ia / calibration_rounds;
-    if(_isset(pinB)) offset_ib = offset_ib / calibration_rounds;
-    if(_isset(pinC)) offset_ic = offset_ic / calibration_rounds;
+    if(_isset(pinA)) offset_ia /= calibration_rounds;
+    if(_isset(pinB)) offset_ib /= calibration_rounds;
+    if(_isset(pinC)) offset_ic /= calibration_rounds;
 }
 
-// read all three phase currents (if possible 2 or 3)
 PhaseCurrent_s LowsideCurrentSense::getPhaseCurrents(){
     PhaseCurrent_s current;
     _startADC3PinConversionLowSide();
-    current.a = (!_isset(pinA)) ? 0 : (_readADCVoltageLowSide(pinA, params) - offset_ia)*gain_a;// amps
-    current.b = (!_isset(pinB)) ? 0 : (_readADCVoltageLowSide(pinB, params) - offset_ib)*gain_b;// amps
-    current.c = (!_isset(pinC)) ? 0 : (_readADCVoltageLowSide(pinC, params) - offset_ic)*gain_c; // amps
+    current.a = (!_isset(pinA)) ? 0 : (_readADCVoltageLowSide(pinA, params) - offset_ia)*gain_a;
+    current.b = (!_isset(pinB)) ? 0 : (_readADCVoltageLowSide(pinB, params) - offset_ib)*gain_b;
+    current.c = (!_isset(pinC)) ? 0 : (_readADCVoltageLowSide(pinC, params) - offset_ic)*gain_c;
     return current;
+}
+
+float LowsideCurrentSense::getVbusVoltage() {
+  if (vbus_rank == -1) return 0.0f;
+  uint32_t raw_adc = HAL_ADCEx_InjectedGetValue(((Stm32CurrentSenseParams*)params)->adc_handle, _getADCInjectedRank(vbus_rank));
+  return (raw_adc * ((Stm32CurrentSenseParams*)params)->adc_voltage_conv) * vbus_gain;
+}
+
+void LowsideCurrentSense::initBrakeResistorPWM(int pin, float target_voltage, float p_gain, float i_gain) {
+    pin_brake_resistor = pin;
+    brake_target_voltage = target_voltage;
+    brake_p_gain = p_gain;
+    brake_i_gain = i_gain;
+    if (!_isset(pin_brake_resistor)) return;
+    __HAL_RCC_TIM2_CLK_ENABLE();
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin = GPIO_PIN_11;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Alternate = GPIO_AF1_TIM2;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    brake_timer_handle.Instance = TIM2;
+    brake_timer_handle.Init.Prescaler = 0;
+    brake_timer_handle.Init.CounterMode = TIM_COUNTERMODE_UP;
+    brake_timer_handle.Init.Period = 1023;
+    brake_timer_handle.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+    HAL_TIM_PWM_Init(&brake_timer_handle);
+    TIM_OC_InitTypeDef sConfigOC = {0};
+    sConfigOC.OCMode = TIM_OCMODE_PWM1;
+    sConfigOC.Pulse = 0;
+    sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+    sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+    HAL_TIM_PWM_ConfigChannel(&brake_timer_handle, &sConfigOC, TIM_CHANNEL_4);
+    HAL_TIM_PWM_Start(&brake_timer_handle, TIM_CHANNEL_4);
+}
+
+void LowsideCurrentSense::updateBrakeResistor() {
+    if (!_isset(pin_brake_resistor) || brake_target_voltage == 0) return;
+    float vbus = getVbusVoltage();
+    float duty_cycle = 0;
+    if (vbus > brake_target_voltage) {
+        float error = vbus - brake_target_voltage;
+        duty_cycle = error * brake_p_gain;
+        brake_integrator += error * brake_i_gain;
+        brake_integrator = _constrain(brake_integrator, 0.0f, 1.0f);
+        duty_cycle += brake_integrator;
+    } else {
+        brake_integrator = 0;
+        duty_cycle = 0;
+    }
+    duty_cycle = _constrain(duty_cycle, 0.0f, 0.95f);
+    brake_duty_cycle = duty_cycle;
+    __HAL_TIM_SET_COMPARE(&brake_timer_handle, TIM_CHANNEL_4, (uint32_t)(brake_duty_cycle * 1023));
 }

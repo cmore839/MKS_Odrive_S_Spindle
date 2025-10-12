@@ -4,9 +4,23 @@
 #include "globals.h"
 #include "DRV8301.h"
 #include "current_sense/hardware_specific/stm32/stm32f4/stm32f4_hal.h" // Make sure to include your HAL header
+// -- All Sensing Parameters in one place --
+#define SHUNT_RESISTOR 0.0005f
+#define CSA_GAIN 80.0f
+#define PIN_CUR_B M0_IB
+#define PIN_CUR_C M0_IC
 #define PIN_VBUS PA6
-#define VBUS_DIVIDER_RATIO 19.0f // (18k + 1k) / 1k
-#define PIN_BRAKE_RESISTOR PB11 // Correct pin for the brake resistor
+#define VBUS_DIVIDER_RATIO 19.0f 
+
+// PWM Control Parameters
+#define PIN_BRAKE_RESISTOR PB11
+#define BRAKE_TARGET_VOLTAGE 30.0f // MUST BE GREATER THAN SUPPLY VOLTAGE
+#define BRAKE_P_GAIN 0.1f         
+#define BRAKE_I_GAIN 0.05f
+
+// Use the constructor that includes Vbus information
+LowsideCurrentSense CS1 = LowsideCurrentSense(SHUNT_RESISTOR, CSA_GAIN, _NC, PIN_CUR_B, PIN_CUR_C, PIN_VBUS, VBUS_DIVIDER_RATIO);
+
 
 float current_bandwidth = 330; //Hz
 float phase_resistance = 0.2816;
@@ -22,7 +36,7 @@ DRV8301 gate_driver = DRV8301(SPI3_MOSO, SPI3_MISO, SPI3_SCL, SPI3_CS, EN_GATE, 
 // Commander command = Commander(Serial);
 // void doMotor(char* cmd) { command.motor(&M1, cmd); }
 //LowsideCurrentSense CS1 = LowsideCurrentSense(0.0005f, 80.0f, _NC, M0_IB, M0_IC, PIN_VBUS, VBUS_DIVIDER_RATIO);
-LowsideCurrentSense CS1 = LowsideCurrentSense(0.0005f, 80.0f, _NC, M0_IB, M0_IC);
+//LowsideCurrentSense CS1 = LowsideCurrentSense(0.0005f, 80.0f, _NC, M0_IB, M0_IC);
 PhaseCurrent_s current1;
 STM32HWEncoder E1 = STM32HWEncoder(16384, M0_ENC_A, M0_ENC_B, _NC);
 
@@ -74,21 +88,14 @@ void setup(){
   M1.controller = MotionControlType::velocity;
   M1.foc_modulation = FOCModulationType::SpaceVectorPWM;
   
-  // comment out if not needed
-  // M1.useMonitoring(Serial);
-  // M1.monitor_variables = _MON_CURR_Q | _MON_CURR_D;
-  // M1.monitor_downsample = 1000;
-
-  // // add target command T
-  // command.add('M', doMotor, "motor M0");
-
-  // initialise motor
+ // initialise motor
   M1.init();
 
   // link the driver
   CS1.linkDriver(&DR1);
   // init the current sense
-  CS1.init();  
+  CS1.init();
+  CS1.initBrakeResistorPWM(PIN_BRAKE_RESISTOR, BRAKE_TARGET_VOLTAGE, BRAKE_P_GAIN, BRAKE_I_GAIN);
   CS1.skip_align = true;
   M1.linkCurrentSense(&CS1);
   
@@ -112,10 +119,12 @@ void loop(){
   if (loopcounter == loopiter){
     //Loop time finish 
     current1 = CS1.getPhaseCurrents();
+    VBUS_S = CS1.getVbusVoltage();
+    CS1.updateBrakeResistor();
     finish = micros();
     looptime = (finish - start);
     loopcounter = 0;
-    //VBUS_S = CS1.getVbusVoltage();
+   
   }
   loopcounter++;
 }
