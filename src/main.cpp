@@ -6,6 +6,7 @@
 #include "current_sense/hardware_specific/stm32/stm32f4/stm32f4_hal.h" // Make sure to include your HAL header
 #define PIN_VBUS PA6
 #define VBUS_DIVIDER_RATIO 19.0f // (18k + 1k) / 1k
+#define PIN_BRAKE_RESISTOR PB11 // Correct pin for the brake resistor
 
 float current_bandwidth = 330; //Hz
 float phase_resistance = 0.2816;
@@ -18,9 +19,10 @@ BLDCMotor M1 = BLDCMotor(5, phase_resistance, 145, q_phase_inductance);
 BLDCDriver6PWM DR1 = BLDCDriver6PWM(M0_INH_A,M0_INL_A, M0_INH_B,M0_INL_B, M0_INH_C,M0_INL_C);
 // DRV8301 gate_driver = DRV8301(MOSI, MISO, SCLK, CS, EN_GATE, FAULT);
 DRV8301 gate_driver = DRV8301(SPI3_MOSO, SPI3_MISO, SPI3_SCL, SPI3_CS, EN_GATE, nFAULT);
-Commander command = Commander(Serial);
-void doMotor(char* cmd) { command.motor(&M1, cmd); }
-LowsideCurrentSense CS1 = LowsideCurrentSense(0.0005f, 80.0f, _NC, M0_IB, M0_IC, PIN_VBUS, VBUS_DIVIDER_RATIO);
+// Commander command = Commander(Serial);
+// void doMotor(char* cmd) { command.motor(&M1, cmd); }
+//LowsideCurrentSense CS1 = LowsideCurrentSense(0.0005f, 80.0f, _NC, M0_IB, M0_IC, PIN_VBUS, VBUS_DIVIDER_RATIO);
+LowsideCurrentSense CS1 = LowsideCurrentSense(0.0005f, 80.0f, _NC, M0_IB, M0_IC);
 PhaseCurrent_s current1;
 STM32HWEncoder E1 = STM32HWEncoder(16384, M0_ENC_A, M0_ENC_B, _NC);
 
@@ -28,16 +30,16 @@ void setup(){
   Serial.begin(115200);
   SimpleFOCDebug::enable(&Serial);
 
-  DR1.pwm_frequency = 20000;
+  DR1.pwm_frequency = 25000;
   // power supply voltage [V]
-  DR1.voltage_power_supply = 24;
+  DR1.voltage_power_supply = 30;
   // Max DC voltage allowed - default voltage_power_supply
-  DR1.voltage_limit = 24;
-  M1.motion_downsample = 100; // run the control loop at each foc loop
-  M1.voltage_limit = 12;   // [V]
-  M1.current_limit = 0.5; // Amps
-  M1.velocity_limit = 2; // [rad/s]
-  M1.voltage_sensor_align = 0.5;
+  DR1.voltage_limit = 30;
+  M1.motion_downsample = 10; // run the control loop at each foc loop
+  M1.voltage_limit = 5;   // [V]
+  M1.current_limit = 0.3; // Amps
+  M1.velocity_limit = 9999; // [rad/s]
+  M1.voltage_sensor_align = 2.0;
 
     // velocity PID controller parameters
   M1.PID_velocity.P = 0.05;
@@ -70,14 +72,15 @@ void setup(){
   // control loop type and torque mode 
   M1.torque_controller = TorqueControlType::foc_current;
   M1.controller = MotionControlType::velocity;
+  M1.foc_modulation = FOCModulationType::SpaceVectorPWM;
   
   // comment out if not needed
-  M1.useMonitoring(Serial);
-  M1.monitor_variables = _MON_CURR_Q | _MON_CURR_D;
-  M1.monitor_downsample = 1000;
+  // M1.useMonitoring(Serial);
+  // M1.monitor_variables = _MON_CURR_Q | _MON_CURR_D;
+  // M1.monitor_downsample = 1000;
 
-  // add target command T
-  command.add('M', doMotor, "motor M0");
+  // // add target command T
+  // command.add('M', doMotor, "motor M0");
 
   // initialise motor
   M1.init();
@@ -102,17 +105,17 @@ void loop(){
   M1.loopFOC();
   // motion control
   M1.move(target);
-  // monitoring 
-  M1.monitor();
-  // user communication
-  command.run();
+  // // monitoring 
+  // M1.monitor();
+  // // user communication
+  // command.run();
   if (loopcounter == loopiter){
     //Loop time finish 
+    current1 = CS1.getPhaseCurrents();
     finish = micros();
     looptime = (finish - start);
-    current1 = CS1.getPhaseCurrents();
     loopcounter = 0;
-    VBUS_S = CS1.getVbusVoltage();
+    //VBUS_S = CS1.getVbusVoltage();
   }
   loopcounter++;
 }
