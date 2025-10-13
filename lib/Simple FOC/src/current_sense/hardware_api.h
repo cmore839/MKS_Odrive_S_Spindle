@@ -13,7 +13,7 @@ typedef struct GenericCurrentSenseParams {
 
 // Function declarations
 void* _configureADCLowSide(const void *driver_params, const int pinA,const int pinB,const int pinC = NOT_SET);
-void* _configureADCLowSide(const void* driver_params, const int pinA, const int pinB, const int pinC, const int vbus_pin);
+void* _configureADCLowSide(const void* driver_params, const int pinA, const int pinB, const int pinC, const int vbus_pin, const int temp_pin = NOT_SET);
 
 float _readVbusADCVoltage(const void* cs_params);
 

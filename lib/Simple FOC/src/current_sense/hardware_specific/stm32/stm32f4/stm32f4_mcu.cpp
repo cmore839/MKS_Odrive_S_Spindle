@@ -24,14 +24,15 @@ Stm32AdcInterruptConfig adc_interrupt_config[5] = {
   {0, 0, USE_ADC_INTERRUPT},{0, 0, USE_ADC_INTERRUPT},{0, 0, USE_ADC_INTERRUPT},{0, 0, USE_ADC_INTERRUPT},{0, 0, USE_ADC_INTERRUPT}
 };
 
-__attribute__((weak)) void* _configureADCLowSide(const void* driver_params, const int pinA, const int pinB, const int pinC){
-  return _configureADCLowSide(driver_params, pinA, pinB, pinC, NOT_SET);
+__attribute__((weak)) void* _configureADCLowSide(const void* driver_params, const int pinA, const int pinB, const int pinC, const int vbus_pin){
+  return _configureADCLowSide(driver_params, pinA, pinB, pinC, vbus_pin, NOT_SET);
 }
 
-void* _configureADCLowSide(const void* driver_params, const int pinA, const int pinB, const int pinC, const int vbus_pin){
+void* _configureADCLowSide(const void* driver_params, const int pinA, const int pinB, const int pinC, const int vbus_pin, const int temp_pin){
   Stm32CurrentSenseParams* cs_params= new Stm32CurrentSenseParams {
     .pins={pinA, pinB, pinC},
     .vbus_pin = vbus_pin,
+    .temp_pin = temp_pin,
     .adc_voltage_conv = (_ADC_VOLTAGE_F4) / (_ADC_RESOLUTION_F4)
   };
   if(_adc_gpio_init(cs_params, pinA,pinB,pinC) != 0) return SIMPLEFOC_CURRENT_SENSE_INIT_FAILED;

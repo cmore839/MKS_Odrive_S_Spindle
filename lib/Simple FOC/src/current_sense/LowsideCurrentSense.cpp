@@ -4,8 +4,8 @@
 #include "hardware_specific/stm32/stm32_adc_utils.h"
 
 // Main constructor
-LowsideCurrentSense::LowsideCurrentSense(float _shunt_resistor, float _gain, int _pinA, int _pinB, int _pinC, int _pinVbus, float _vbus_gain)
-    : pinA(_pinA), pinB(_pinB), pinC(_pinC), shunt_resistor(_shunt_resistor), amp_gain(_gain), pinVbus(_pinVbus), vbus_gain(_vbus_gain)
+LowsideCurrentSense::LowsideCurrentSense(float _shunt_resistor, float _gain, int _pinA, int _pinB, int _pinC, int _pinVbus, float _vbus_gain, int _pinTemp)
+  : pinA(_pinA), pinB(_pinB), pinC(_pinC), shunt_resistor(_shunt_resistor), amp_gain(_gain), pinVbus(_pinVbus), vbus_gain(_vbus_gain), pinTemp(_pinTemp)
 {
     volts_to_amps_ratio = 1.0f / _shunt_resistor / _gain;
     gain_a = volts_to_amps_ratio;
@@ -34,9 +34,10 @@ int LowsideCurrentSense::init(){
     if (_isset(pinA)) rank_counter++;
     if (_isset(pinB)) rank_counter++;
     if (_isset(pinC)) rank_counter++;
-    if (_isset(pinVbus)) vbus_rank = rank_counter;
+    if (_isset(pinVbus)) vbus_rank = rank_counter++;
+    if (_isset(pinTemp)) temp_rank = rank_counter;
     
-    params = _configureADCLowSide(driver->params, pinA, pinB, pinC, pinVbus);
+    params = _configureADCLowSide(driver->params, pinA, pinB, pinC, pinVbus, pinTemp);
     if (params == SIMPLEFOC_CURRENT_SENSE_INIT_FAILED) return 0;
 
     void* r = _driverSyncLowSide(driver->params, params);
@@ -75,6 +76,35 @@ float LowsideCurrentSense::getVbusVoltage() {
   if (vbus_rank == -1) return 0.0f;
   uint32_t raw_adc = HAL_ADCEx_InjectedGetValue(((Stm32CurrentSenseParams*)params)->adc_handle, _getADCInjectedRank(vbus_rank));
   return (raw_adc * ((Stm32CurrentSenseParams*)params)->adc_voltage_conv) * vbus_gain;
+}
+
+float LowsideCurrentSense::getTemperature() {
+    if (temp_rank == -1) return 0.0f;
+
+    // Read the raw ADC value for the temperature sensor
+    uint32_t raw_adc = HAL_ADCEx_InjectedGetValue(((Stm32CurrentSenseParams*)params)->adc_handle, _getADCInjectedRank(temp_rank));
+
+    // Convert the ADC value to voltage
+    float voltage = (raw_adc * ((Stm32CurrentSenseParams*)params)->adc_voltage_conv);
+
+    // This formula assumes the NTC is connected to 3.3V and the fixed resistor is connected to ground.
+    float R_ntc = 3300.0f * (3.3f - voltage) / voltage;
+
+    // Convert resistance to temperature using the Steinhart-Hart equation
+    float R0 = 10000.0f; // Resistance at reference temperature (25°C)
+    float T0 = 298.15f;  // Reference temperature in Kelvin (25°C)
+    float B = 3950.0f;   // Beta coefficient of the thermistor
+    float steinhart = log(R_ntc / R0) / B;
+    steinhart += 1.0f / T0;
+    steinhart = 1.0f / steinhart;
+    steinhart -= 273.15f; // Convert from Kelvin to Celsius
+
+    // Debugging output
+    // SIMPLEFOC_DEBUG("Temp ADC Raw: ", raw_adc);
+    // SIMPLEFOC_DEBUG("Temp R_ntc: ", R_ntc);
+    // SIMPLEFOC_DEBUG("Temperature: ", steinhart);
+
+    return steinhart;
 }
 
 void LowsideCurrentSense::initBrakeResistorPWM(int pin, float target_voltage, float p_gain, float i_gain) {

@@ -9,8 +9,8 @@ ADC_HandleTypeDef hadc;
 int _adc_init(Stm32CurrentSenseParams* cs_params, const STM32DriverParams* driver_params)
 {
   ADC_InjectionConfTypeDef sConfigInjected;
-  int all_pins[4] = {cs_params->pins[0], cs_params->pins[1], cs_params->pins[2], cs_params->vbus_pin};
-  hadc.Instance = _findBestADCForPins(4, all_pins);
+  int all_pins[5] = {cs_params->pins[0], cs_params->pins[1], cs_params->pins[2], cs_params->vbus_pin, cs_params->temp_pin};
+  hadc.Instance = _findBestADCForPins(5, all_pins);
 
   if(hadc.Instance == ADC1) __HAL_RCC_ADC1_CLK_ENABLE();
   #ifdef ADC2
@@ -39,6 +39,7 @@ int _adc_init(Stm32CurrentSenseParams* cs_params, const STM32DriverParams* drive
   if (_isset(cs_params->pins[1])) sConfigInjected.InjectedNbrOfConversion++;
   if (_isset(cs_params->pins[2])) sConfigInjected.InjectedNbrOfConversion++;
   if (_isset(cs_params->vbus_pin)) sConfigInjected.InjectedNbrOfConversion++;
+  if (_isset(cs_params->temp_pin)) sConfigInjected.InjectedNbrOfConversion++;
 
   sConfigInjected.ExternalTrigInjecConvEdge = ADC_EXTERNALTRIGINJECCONVEDGE_RISING;
   sConfigInjected.AutoInjectedConv = DISABLE;
@@ -74,6 +75,12 @@ int _adc_init(Stm32CurrentSenseParams* cs_params, const STM32DriverParams* drive
     sConfigInjected.InjectedChannel = _getADCChannel(analogInputToPinName(cs_params->vbus_pin), hadc.Instance);
     if (HAL_ADCEx_InjectedConfigChannel(&hadc, &sConfigInjected) != HAL_OK) return -1;
   }
+  
+  if (_isset(cs_params->temp_pin)) {
+    sConfigInjected.InjectedRank = _getADCInjectedRank(channel_no++);
+    sConfigInjected.InjectedChannel = _getADCChannel(analogInputToPinName(cs_params->temp_pin), hadc.Instance);
+    if (HAL_ADCEx_InjectedConfigChannel(&hadc, &sConfigInjected) != HAL_OK) return -1;
+  }
 
   cs_params->adc_handle = &hadc;
   return 0;
@@ -90,6 +97,9 @@ int _adc_gpio_init(Stm32CurrentSenseParams* cs_params, const int pinA, const int
     }
     if (_isset(cs_params->vbus_pin)) {
         pinmap_pinout(analogInputToPinName(cs_params->vbus_pin), PinMap_ADC);
+    }
+    if (_isset(cs_params->temp_pin)) {
+        pinmap_pinout(analogInputToPinName(cs_params->temp_pin), PinMap_ADC);
     }
     return 0;
 }

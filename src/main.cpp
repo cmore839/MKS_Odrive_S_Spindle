@@ -10,7 +10,9 @@
 #define PIN_CUR_B M0_IB
 #define PIN_CUR_C M0_IC
 #define PIN_VBUS PA6
-#define VBUS_DIVIDER_RATIO 19.0f 
+#define VBUS_DIVIDER_RATIO 19.0f
+#define PIN_TEMP_M1 PC5 // New temperature sensor pin
+
 
 // PWM Control Parameters
 #define PIN_BRAKE_RESISTOR PB11
@@ -19,7 +21,7 @@
 #define BRAKE_I_GAIN 0.05f
 
 // Use the constructor that includes Vbus information
-LowsideCurrentSense CS1 = LowsideCurrentSense(SHUNT_RESISTOR, CSA_GAIN, _NC, PIN_CUR_B, PIN_CUR_C, PIN_VBUS, VBUS_DIVIDER_RATIO);
+LowsideCurrentSense CS1 = LowsideCurrentSense(SHUNT_RESISTOR, CSA_GAIN, _NC, PIN_CUR_B, PIN_CUR_C, PIN_VBUS, VBUS_DIVIDER_RATIO, PIN_TEMP_M1);
 
 
 float current_bandwidth = 330; //Hz
@@ -27,6 +29,7 @@ float phase_resistance = 0.2816;
 float d_phase_inductance = 0.00037;
 float q_phase_inductance = 0.00037;
 float VBUS_S = 0;
+float Fet_Temp_M1 = 0;
 
 // Motor instance
 BLDCMotor M1 = BLDCMotor(5, phase_resistance, 145, q_phase_inductance);
@@ -50,8 +53,8 @@ void setup(){
   // Max DC voltage allowed - default voltage_power_supply
   DR1.voltage_limit = 30;
   M1.motion_downsample = 10; // run the control loop at each foc loop
-  M1.voltage_limit = 5;   // [V]
-  M1.current_limit = 0.3; // Amps
+  M1.voltage_limit = 1;   // [V]
+  M1.current_limit = 1.0; // Amps
   M1.velocity_limit = 9999; // [rad/s]
   M1.voltage_sensor_align = 2.0;
 
@@ -121,6 +124,7 @@ void loop(){
     current1 = CS1.getPhaseCurrents();
     VBUS_S = CS1.getVbusVoltage();
     CS1.updateBrakeResistor();
+    Fet_Temp_M1 = CS1.getTemperature();
     finish = micros();
     looptime = (finish - start);
     loopcounter = 0;

@@ -12,7 +12,7 @@
 class LowsideCurrentSense: public CurrentSense{
   public:
     // Main constructor
-    LowsideCurrentSense(float shunt_resistor, float gain, int pinA, int pinB, int pinC, int pinVbus, float vbus_gain);
+    LowsideCurrentSense(float shunt_resistor, float gain, int pinA, int pinB, int pinC, int pinVbus, float vbus_gain, int pinTemp = NOT_SET);
     
     // Legacy constructors
     LowsideCurrentSense(float shunt_resistor, float gain, int pinA, int pinB, int pinC = _NC);
@@ -22,6 +22,7 @@ class LowsideCurrentSense: public CurrentSense{
     int init() override;
     PhaseCurrent_s getPhaseCurrents() override;
     float getVbusVoltage();
+    float getTemperature();
 
     // Feature initialization
     void initBrakeResistorPWM(int pin, float target_voltage, float p_gain, float i_gain);
@@ -42,6 +43,8 @@ class LowsideCurrentSense: public CurrentSense{
     int pinVbus = NOT_SET, vbus_rank = -1;
     float vbus_gain = 1.0f;
     
+    int pinTemp = NOT_SET, temp_rank = -1;
+
     int pin_brake_resistor = NOT_SET;
     TIM_HandleTypeDef brake_timer_handle;
     float brake_target_voltage = 0, brake_p_gain = 0, brake_i_gain = 0, brake_integrator = 0;
