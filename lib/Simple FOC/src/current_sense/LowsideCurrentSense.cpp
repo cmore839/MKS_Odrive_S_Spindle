@@ -2,6 +2,7 @@
 #include "communication/SimpleFOCDebug.h"
 #include "hardware_specific/stm32/stm32_mcu.h"
 #include "hardware_specific/stm32/stm32_adc_utils.h"
+#include "../BLDCMotor.h" 
 
 // Main constructor
 LowsideCurrentSense::LowsideCurrentSense(float _shunt_resistor, float _gain, int _pinA, int _pinB, int _pinC, int _pinVbus, float _vbus_gain, int _pinTemp)
@@ -42,6 +43,10 @@ int LowsideCurrentSense::init(){
 
     void* r = _driverSyncLowSide(driver->params, params);
     if(r == SIMPLEFOC_CURRENT_SENSE_INIT_FAILED) return 0;
+    
+    if (motor) {
+        original_current_limit = motor->current_limit;
+    }
     
     calibrateOffsets();
     initialized = (params!=SIMPLEFOC_CURRENT_SENSE_INIT_FAILED);
@@ -100,7 +105,8 @@ float LowsideCurrentSense::getTemperature() {
     steinhart -= 273.15f; // Convert from Kelvin to Celsius
 
     // Debugging output
-    // SIMPLEFOC_DEBUG("Temp ADC Raw: ", raw_adc);
+    // SIMPLEFOC_DEBUG("Temp ADC Raw: ", (int)raw_adc);
+    // SIMPLEFOC_DEBUG("Temp Voltage: ", voltage);
     // SIMPLEFOC_DEBUG("Temp R_ntc: ", R_ntc);
     // SIMPLEFOC_DEBUG("Temperature: ", steinhart);
 
@@ -153,4 +159,42 @@ void LowsideCurrentSense::updateBrakeResistor() {
     duty_cycle = _constrain(duty_cycle, 0.0f, 0.95f);
     brake_duty_cycle = duty_cycle;
     __HAL_TIM_SET_COMPARE(&brake_timer_handle, TIM_CHANNEL_4, (uint32_t)(brake_duty_cycle * 1023));
+}
+
+void LowsideCurrentSense::checkTemperature() {
+    if (!motor) {
+        //SIMPLEFOC_DEBUG("Motor not linked, skipping temperature check.");
+        return;
+    }
+    if (motor_cutoff) return;
+
+    float temp = getTemperature();
+
+    if (temp > motor_cutoff_temp) {
+        motor->disable();
+        motor_cutoff = true;
+        //SIMPLEFOC_DEBUG("CUTOFF! Temp exceeded motor_cutoff_temp.");
+    } else if (temp > high_temp_limit) {
+        motor->current_limit = 0.0f;
+        //SIMPLEFOC_DEBUG("WARNING! Temp exceeded high_temp_limit.");
+    } else if (temp > low_temp_limit) {
+        float scale = 1.0f - (temp - low_temp_limit) / (high_temp_limit - low_temp_limit);
+        motor->current_limit = original_current_limit * scale;
+        //SIMPLEFOC_DEBUG("INFO: Temp in ramp zone. Current limit scaled.");
+    } else {
+        motor->current_limit = original_current_limit;
+        //SIMPLEFOC_DEBUG("INFO: Temp is normal.");
+    }
+}
+
+void LowsideCurrentSense::resetTemperatureProtection() {
+    if (motor) {
+        motor->enable();
+    }
+    motor_cutoff = false;
+    SIMPLEFOC_DEBUG("Temperature protection reset.");
+}
+
+void LowsideCurrentSense::linkMotor(BLDCMotor* _motor) {
+    motor = _motor;
 }
