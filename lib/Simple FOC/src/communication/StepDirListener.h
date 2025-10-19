@@ -53,7 +53,7 @@ class StepDirListener
   private:
     float* attached_variable = nullptr; //!< pointer to the attached variable 
     float counter_to_value; //!< step counter to value 
-    //bool step_active = 0; //!< current step pin status (HIGH/LOW) - debouncing variable
+    bool step_active = 0; //!< current step pin status (HIGH/LOW) - debouncing variable
 
 };
 

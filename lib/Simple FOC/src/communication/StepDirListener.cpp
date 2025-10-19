@@ -22,9 +22,9 @@ void StepDirListener::attach(float* variable){
 
 void StepDirListener::handle(){ 
   // read step status
-  //bool step = digitalRead(pin_step);
+  bool step = digitalRead(pin_step);
   // update counter only on rising edge 
-  //if(step && step != step_active){
+  if(step && step != step_active){
     if(digitalRead(pin_dir)) 
         count++;
     else 
@@ -33,6 +33,7 @@ void StepDirListener::handle(){
    //step_active = step;
    // if attached variable update it
    if(attached_variable) *attached_variable = getValue();
+  }
 }
 // calculate the position from counter
 float StepDirListener::getValue(){
