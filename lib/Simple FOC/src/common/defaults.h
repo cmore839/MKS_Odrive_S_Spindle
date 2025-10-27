@@ -1,7 +1,7 @@
 // default configuration values
 // change this file to optimal values for your application
 
-#define DEF_POWER_SUPPLY 12.0f //!< default power supply voltage
+#define DEF_POWER_SUPPLY 56.0f //!< default power supply voltage
 // velocity PI controller params
 #define DEF_PID_VEL_P 0.5f //!< default PID controller P value
 #define DEF_PID_VEL_I 10.0f //!<  default PID controller I value
@@ -23,7 +23,7 @@
 #define DEF_PID_CURR_P 3 //!< default PID controller P value
 #define DEF_PID_CURR_I 300.0f //!<  default PID controller I value
 #define DEF_PID_CURR_D 0.0f //!<  default PID controller D value
-#define DEF_PID_CURR_RAMP 0  //!< default PID controller voltage ramp value
+#define DEF_PID_CURR_RAMP 0.0  //!< default PID controller voltage ramp value
 #define DEF_PID_CURR_LIMIT (DEF_POWER_SUPPLY) //!< default PID controller voltage limit
 #define DEF_CURR_FILTER_Tf 0.005f //!< default currnet filter time constant
 #endif
