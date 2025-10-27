@@ -52,8 +52,9 @@ void setup(){
   DR1.voltage_limit = 56.0;
   M1.motion_downsample = 10; // run the control loop at each foc loop
   M1.voltage_limit = 56.0;   // [V]
-  M1.current_limit = 2.0; // Amps
+  M1.current_limit = 5.0; // Amps
   M1.voltage_sensor_align = 5.0;
+  M1.acceleration_limit = 500.0;
 
     // velocity PID controller parameters
   M1.PID_velocity.P = 0.05;

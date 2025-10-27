@@ -397,6 +397,13 @@ void BLDCMotor::move(float new_target) {
 
   // set internal target variable
   if(_isset(new_target)) target = new_target;
+
+  // get time difference from last move() call
+  unsigned long now_us = _micros();
+  float Ts = (float)(now_us - move_timestamp) * 1e-6f;
+  // handle overflow or first call
+  if(Ts <= 0 || Ts > 0.5f) Ts = 1e-3f; 
+  move_timestamp = now_us;
   
   // downsampling (optional)
   if(motion_cnt++ < motion_downsample) return;
@@ -457,8 +464,16 @@ void BLDCMotor::move(float new_target) {
       }
       break;
     case MotionControlType::velocity:
-      // velocity set point - sensor precision: this calculation is numerically precise.
-      shaft_velocity_sp = target;
+      // apply acceleration limit if specified (rad/s^2)
+      if(acceleration_limit > 0){
+        // calculate max velocity change for this loop
+        float max_vel_change = acceleration_limit * Ts;
+        // ramp the setpoint
+        shaft_velocity_sp = _constrain(target, shaft_velocity_sp - max_vel_change, shaft_velocity_sp + max_vel_change);
+      } else {
+        // no limit, set directly
+        shaft_velocity_sp = target;
+      }
       // calculate the torque command
       current_sp = PID_velocity(shaft_velocity_sp - shaft_velocity); // if current/foc_current torque control
       // if torque controlled through voltage control

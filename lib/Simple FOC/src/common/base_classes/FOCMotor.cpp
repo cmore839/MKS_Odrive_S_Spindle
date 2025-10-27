@@ -12,6 +12,8 @@ FOCMotor::FOCMotor()
   voltage_limit = DEF_POWER_SUPPLY;
   // not set on the begining
   current_limit = DEF_CURRENT_LIM;
+  // acceleration limit
+  acceleration_limit = 0; // 0 for no limit by default
 
   // index search velocity
   velocity_index_search = DEF_INDEX_SEARCH_TARGET_VELOCITY;
@@ -44,6 +46,8 @@ FOCMotor::FOCMotor()
   sensor = nullptr;
   //current sensor 
   current_sense = nullptr;
+  // timestamp for move()
+  move_timestamp = _micros();
 }
 
 
@@ -81,7 +85,7 @@ float FOCMotor::electricalAngle(){
 }
 
 /**
- *  Monitoring functions
+ * Monitoring functions
  */
 // function implementing the monitor_port setter
 void FOCMotor::useMonitoring(Print &print){
@@ -376,5 +380,4 @@ void FOCMotor::monitor() {
     if(monitor_end_char) monitor_port->println(monitor_end_char);
     else monitor_port->println("");
   }
-}   
-
+}

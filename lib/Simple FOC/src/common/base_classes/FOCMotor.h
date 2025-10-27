@@ -6,7 +6,7 @@
 #include "CurrentSense.h"
 
 #include "../time_utils.h"
-#include "../foc_utils.h"
+#include "../fOC_utils.h"
 #include "../defaults.h"
 #include "../pid.h"
 #include "../lowpass_filter.h"
@@ -22,7 +22,7 @@
 #define _MON_ANGLE  0b0000001 // monitor angle value
 
 /**
- *  Motiron control type
+ * Motiron control type
  */
 enum MotionControlType : uint8_t {
   torque            = 0x00,     //!< Torque control
@@ -33,7 +33,7 @@ enum MotionControlType : uint8_t {
 };
 
 /**
- *  Motiron control type
+ * Motiron control type
  */
 enum TorqueControlType : uint8_t { 
   voltage            = 0x00,     //!< Torque control using voltage
@@ -42,7 +42,7 @@ enum TorqueControlType : uint8_t {
 };
 
 /**
- *  FOC modulation type
+ * FOC modulation type
  */
 enum FOCModulationType : uint8_t {
   SinePWM            = 0x00,     //!< Sinusoidal PWM modulation
@@ -77,7 +77,7 @@ class FOCMotor
      */
     FOCMotor();
 
-    /**  Motor hardware init function */
+    /** Motor hardware init function */
   	virtual int init()=0;
     /** Motor disable function */
   	virtual void disable()=0;
@@ -86,15 +86,13 @@ class FOCMotor
 
     /**
      * Function linking a motor and a sensor 
-     * 
-     * @param sensor Sensor class  wrapper for the FOC algorihtm to read the motor angle and velocity
+     * * @param sensor Sensor class  wrapper for the FOC algorihtm to read the motor angle and velocity
      */
     void linkSensor(Sensor* sensor);
 
     /**
      * Function linking a motor and current sensing 
-     * 
-     * @param current_sense CurrentSense class wrapper for the FOC algorihtm to read the motor current measurements
+     * * @param current_sense CurrentSense class wrapper for the FOC algorihtm to read the motor current measurements
      */
     void linkCurrentSense(CurrentSense* current_sense);
 
@@ -102,8 +100,7 @@ class FOCMotor
     /**
      * Function initializing FOC algorithm
      * and aligning sensor's and motors' zero position 
-     * 
-     * - If zero_electric_offset parameter is set the alignment procedure is skipped
+     * * - If zero_electric_offset parameter is set the alignment procedure is skipped
      */  
     virtual int initFOC()=0;
     /**
@@ -115,19 +112,16 @@ class FOCMotor
     virtual void loopFOC()=0;
     /**
      * Function executing the control loops set by the controller parameter of the BLDCMotor.
-     * 
-     * @param target  Either voltage, angle or velocity based on the motor.controller
-     *                If it is not set the motor will use the target set in its variable motor.target
-     * 
-     * This function doesn't need to be run upon each loop execution - depends of the use case
+     * * @param target  Either voltage, angle or velocity based on the motor.controller
+     * If it is not set the motor will use the target set in its variable motor.target
+     * * This function doesn't need to be run upon each loop execution - depends of the use case
      */
     virtual void move(float target = NOT_SET)=0;
 
     /**
     * Method using FOC to set Uq to the motor at the optimal angle
     * Heart of the FOC algorithm
-    * 
-    * @param Uq Current voltage in q axis to set to the motor
+    * * @param Uq Current voltage in q axis to set to the motor
     * @param Ud Current voltage in d axis to set to the motor
     * @param angle_el current electrical angle of the motor
     */
@@ -136,16 +130,14 @@ class FOCMotor
     // State calculation methods 
     /** Shaft angle calculation in radians [rad] */
     float shaftAngle();
-    /** 
-     * Shaft angle calculation function in radian per second [rad/s]
+    /** * Shaft angle calculation function in radian per second [rad/s]
      * It implements low pass filtering
      */
     float shaftVelocity();
 
 
 
-    /** 
-     * Electrical angle calculation  
+    /** * Electrical angle calculation  
      */
     float electricalAngle();
 
@@ -187,6 +179,7 @@ class FOCMotor
     float voltage_limit; //!< Voltage limiting variable - global limit
     float current_limit; //!< Current limiting variable - global limit
     float velocity_limit; //!< Velocity limiting variable - global limit
+    float acceleration_limit = 0; //!< Acceleration limiting variable (rad/s^2) - 0 for no limit
 
     // motor status vairables
     int8_t enabled = 0;//!< enabled or disabled motor flag
@@ -212,6 +205,7 @@ class FOCMotor
     LowPassFilter LPF_angle{0.0};//!<  parameter determining the angle low pass filter configuration 
     unsigned int motion_downsample = DEF_MOTION_DOWNSMAPLE; //!< parameter defining the ratio of downsampling for move commad
     unsigned int motion_cnt = 0; //!< counting variable for downsampling for move commad
+    unsigned long move_timestamp = 0; //!< timestamp of the last move() call
 
     // sensor related variabels
     float sensor_offset; //!< user defined sensor zero offset
@@ -222,8 +216,7 @@ class FOCMotor
     /**
      * Function providing BLDCMotor class with the 
      * Serial interface and enabling monitoring mode
-     * 
-     * @param serial Monitoring Serial class reference
+     * * @param serial Monitoring Serial class reference
      */
     void useMonitoring(Print &serial);
 
@@ -240,15 +233,13 @@ class FOCMotor
     // initial monitoring will display target, voltage, velocity and angle
     uint8_t monitor_variables = _MON_TARGET | _MON_VOLT_Q | _MON_VEL | _MON_ANGLE; //!< Bit array holding the map of variables the user wants to monitor
    
-    /** 
-      * Sensor link:
+    /** * Sensor link:
       * - Encoder 
       * - MagneticSensor*
       * - HallSensor
     */
     Sensor* sensor; 
-    /** 
-      * CurrentSense link
+    /** * CurrentSense link
     */
     CurrentSense* current_sense; 
 
