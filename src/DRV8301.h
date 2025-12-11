@@ -1,117 +1,187 @@
-#ifndef _DRV8301_H_
-#define _DRV8301_H_
+#ifndef DRV8301_H
+#define DRV8301_H
 
-#include <Arduino.h>
+#include <SPI.h>
+#include "pins.h"
 
-#define DRV8301_STATUS_REG1 0x00
-#define DRV8301_STATUS_REG2 0x01
-#define DRV8301_CONTROL_REG1 0x02
-#define DRV8301_CONTROL_REG2 0x03
+// --- DRV8301 Definitions (from original ODrive firmware) ---
+// ... (All definitions remain identical to your file) ...
+// Bitmasks
+#define DRV8301_ADDR_MASK               (0x7800)
+#define DRV8301_DATA_MASK               (0x07FF)
+#define DRV8301_RW_MASK                 (0x8000)
+// R/W modes
+typedef enum {
+  DRV8301_CtrlMode_Read = 1 << 15,   // Read Mode
+  DRV8301_CtrlMode_Write = 0 << 15   // Write Mode
+} DRV8301_CtrlMode_e;
+// Register names
+typedef enum {
+  DRV8301_RegName_Status_1  = 0 << 11,   // Status Register 1
+  DRV8301_RegName_Status_2  = 1 << 11,   // Status Register 2
+  DRV8301_RegName_Control_1 = 2 << 11,   // Control Register 1
+  DRV8301_RegName_Control_2 = 3 << 11    // Control Register 2
+} DRV8301_RegName_e;
+// Status Register 1 Bits
+#define DRV8301_STATUS1_FETLC_OC_BITS   (1 << 0)
+#define DRV8301_STATUS1_FETHC_OC_BITS   (1 << 1)
+#define DRV8301_STATUS1_FETLB_OC_BITS   (1 << 2)
+#define DRV8301_STATUS1_FETHB_OC_BITS   (1 << 3)
+#define DRV8301_STATUS1_FETLA_OC_BITS   (1 << 4)
+#define DRV8301_STATUS1_FETHA_OC_BITS   (1 << 5)
+#define DRV8301_STATUS1_OTW_BITS        (1 << 6)
+#define DRV8301_STATUS1_OTSD_BITS       (1 << 7)
+#define DRV8301_STATUS1_PVDD_UV_BITS    (1 << 8)
+#define DRV8301_STATUS1_GVDD_UV_BITS    (1 << 9)
+#define DRV8301_STATUS1_FAULT_BITS      (1 << 10)
+// Status Register 2 Bits
+#define DRV8301_STATUS2_ID_BITS        (15 << 0)
+#define DRV8301_STATUS2_GVDD_OV_BITS   (1 << 7)
+// Control Register 1 Bits
+#define DRV8301_CTRL1_GATE_CURRENT_BITS  (3 << 0)
+#define DRV8301_CTRL1_GATE_RESET_BITS    (1 << 2)
+#define DRV8301_CTRL1_PWM_MODE_BITS      (1 << 3)
+#define DRV8301_CTRL1_OC_MODE_BITS       (3 << 4)
+#define DRV8301_CTRL1_OC_ADJ_SET_BITS    (31 << 6)
+// Control Register 2 Bits
+#define DRV8301_CTRL2_OCTW_SET_BITS      (3 << 0)
+#define DRV8301_CTRL2_GAIN_BITS          (3 << 2)
+#define DRV8301_CTRL2_DC_CAL_1_BITS      (1 << 4)
+#define DRV8301_CTRL2_DC_CAL_2_BITS      (1 << 5)
+#define DRV8301_CTRL2_OC_TOFF_BITS       (1 << 6)
+// ... (All Enums remain identical) ...
+typedef enum {
+  DRV8301_PeakCurrent_1p70_A  = 0 << 0,
+  DRV8301_PeakCurrent_0p70_A  = 1 << 0,
+  DRV8301_PeakCurrent_0p25_A  = 2 << 0
+} DRV8301_PeakCurrent_e;
+typedef enum {
+  DRV8301_PwmMode_Six_Inputs   = 0 << 3,
+  DRV8301_PwmMode_Three_Inputs = 1 << 3
+} DRV8301_PwmMode_e;
+typedef enum {
+  DRV8301_OcMode_CurrentLimit  = 0 << 4,
+  DRV8301_OcMode_LatchShutDown = 1 << 4,
+  DRV8301_OcMode_ReportOnly    = 2 << 4,
+  DRV8301_OcMode_Disabled      = 3 << 4
+} DRV8301_OcMode_e;
+typedef enum {
+  DRV8301_VdsLevel_0p060_V =  0 << 6,
+  DRV8301_VdsLevel_0p068_V =  1 << 6,
+  DRV8301_VdsLevel_0p076_V =  2 << 6,
+  DRV8301_VdsLevel_0p086_V =  3 << 6,
+  DRV8301_VdsLevel_0p097_V =  4 << 6,
+  DRV8301_VdsLevel_0p109_V =  5 << 6,
+  DRV8301_VdsLevel_0p123_V =  6 << 6,
+  DRV8301_VdsLevel_0p138_V =  7 << 6,
+  DRV8301_VdsLevel_0p155_V =  8 << 6,
+  DRV8301_VdsLevel_0p175_V =  9 << 6,
+  DRV8301_VdsLevel_0p197_V = 10 << 6,
+  DRV8301_VdsLevel_0p222_V = 11 << 6,
+  DRV8301_VdsLevel_0p250_V = 12 << 6,
+  DRV8301_VdsLevel_0p282_V = 13 << 6,
+  DRV8301_VdsLevel_0p317_V = 14 << 6,
+  DRV8301_VdsLevel_0p358_V = 15 << 6,
+  DRV8301_VdsLevel_0p403_V = 16 << 6,
+  DRV8301_VdsLevel_0p454_V = 17 << 6,
+  DRV8301_VdsLevel_0p511_V = 18 << 6,
+  DRV8301_VdsLevel_0p576_V = 19 << 6,
+  DRV8301_VdsLevel_0p648_V = 20 << 6,
+  DRV8301_VdsLevel_0p730_V = 21 << 6,
+  DRV8301_VdsLevel_0p822_V = 22 << 6,
+  DRV8301_VdsLevel_0p926_V = 23 << 6,
+  DRV8301_VdsLevel_1p043_V = 24 << 6,
+  DRV8301_VdsLevel_1p175_V = 25 << 6,
+  DRV8301_VdsLevel_1p324_V = 26 << 6,
+  DRV8301_VdsLevel_1p491_V = 27 << 6,
+  DRV8301_VdsLevel_1p679_V = 28 << 6,
+  DRV8301_VdsLevel_1p892_V = 29 << 6,
+  DRV8301_VdsLevel_2p131_V = 30 << 6,
+  DRV8301_VdsLevel_2p400_V = 31 << 6
+} DRV8301_VdsLevel_e;
+typedef enum {
+  DRV8301_OcTwMode_Both    = 0 << 0,
+  DRV8301_OcTwMode_OT_Only = 1 << 0,
+  DRV8301_OcTwMode_OC_Only = 2 << 0
+} DRV8301_OcTwMode_e;
+typedef enum {
+  DRV8301_ShuntAmpGain_10VpV = 0 << 2,
+  DRV8301_ShuntAmpGain_20VpV = 1 << 2,
+  DRV8301_ShuntAmpGain_40VpV = 2 << 2,
+  DRV8301_ShuntAmpGain_80VpV = 3 << 2
+} DRV8301_ShuntAmpGain_e;
+typedef enum {
+  DRV8301_DcCalMode_Ch1_Load   = (0 << 4),
+  DRV8301_DcCalMode_Ch1_NoLoad = (1 << 4),
+} DRV8301_DcCalMode_e;
+typedef enum {
+  DRV8301_DcCalMode_Ch2_Load   = (0 << 5),
+  DRV8301_DcCalMode_Ch2_NoLoad = (1 << 5)
+} DRV8301_DcCalMode_e_ch2;
+typedef enum {
+  DRV8301_OcOffTimeMode_Normal  = 0 << 6,
+  DRV8301_OcOffTimeMode_Ctrl    = 1 << 6
+} DRV8301_OcOffTimeMode_e;
 
-#define GATE_CURRENT_MASK 0x0003
-#define GATE_CURRENT_1P7A 0x0000
-#define GATE_CURRENT_0P7A 0x0001
-#define GATE_CURRENT_0P25A 0x0002
-#define GATE_CURRENT_RESERVED GATE_CURRENT_MASK
 
-#define GATE_RESET_MASK 0x0004
-#define GATE_RESET_NORMAL_MODE 0x0000
-#define GATE_RESET_RESET_MODE GATE_RESET_MASK
+// Helper function to build the 16-bit SPI control word
+static inline uint16_t DRV8301_buildCtrlWord(const DRV8301_CtrlMode_e ctrlMode,
+                                             const DRV8301_RegName_e regName,
+                                             const uint16_t data) {
+  return (ctrlMode | regName | (data & DRV8301_DATA_MASK));
+}
 
-#define PWM_MODE_MASK 0x0008
-#define PWM_MODE_6_PWM_INPUTS 0x0000
-#define PWM_MODE_3_PWM_INPUTS PWM_MODE_MASK
 
-#define OCP_MODE_MASK 0x0030
-#define OCP_MODE_OC_LATCH_SHUTDOWN 0x0010
-#define OCP_MODE_REPORT_ONLY 0x0020
-#define OCP_MODE_DISABLE OCP_MODE_MASK
-
-#define OC_ADJ_SET_MASK 0x07C0
-#define OC_ADJ_SET(_oc_adj_) (((uint16_t)_oc_adj_ & 0x001F) << 6)
-
-#define CSA_GAIN_MASK 0x0060
-#define CSA_GAIN_10 0x0000 // 10 V/V
-#define CSA_GAIN_20 0x0020 // 20 V/V
-#define CSA_GAIN_40 0x0040 // 40 V/V
-#define CSA_GAIN_80 0x0060 // 80 V/V
-
-enum DRV8301_PWM_INPUT_MODE
-{
-    PWM_INPUT_MODE_3PWM,
-    PWM_INPUT_MODE_6PWM
-};
-
-/**
-* Gate driver DRV8301 class
-*/
-class DRV8301
-{
+class DRV8301 {
 public:
-    /**
-    * Set the gain for the current sense amplifiers
-    * @param gain The desired gain (use CSA_GAIN_10, CSA_GAIN_20, etc.)
-    */
-    void set_csa_gain(uint16_t gain);
+    // Constructor
+    DRV8301();
 
-    /**
-     * DRV8301 class constructor
-     * @param mosi  DRV8301 SPI data in pin
-     * @param miso  DRV8301 SPI data out pin
-     * @param sclk  DRV8301 SPI clock pin
-     * @param cs  DRV8301 SPI chip select pin
-     * @param en_gate   DRV8301 enable(reset) pin
-     * @param fault  DRV8301 fault pin (pull_up)
-     */
-    DRV8301(int mosi, int miso, int sclk, int cs, int en_gate, int fault);
+    void init(SPIClass* spi, int ncs_pin);
 
-    /**
-    * Initialize pin and initialize DRV8301
-    * @param pwm_mode DRV8301 PWM signal input mode
-    */
-    void begin(DRV8301_PWM_INPUT_MODE pwm_mode);
+    // --- Configuration ---
+    void setVerbose(bool verbose);
 
-    /** Reset DRV8301 */
-    void reset(void);
+    // --- High-Level Handles ---
+    bool setGateCurrent(DRV8301_PeakCurrent_e current);
+    bool setPWMMode(DRV8301_PwmMode_e mode);
+    bool setOcMode(DRV8301_OcMode_e mode);
+    bool setOcAdj(DRV8301_VdsLevel_e level);
+    void triggerReset();
+    
+    bool setOcTwMode(DRV8301_OcTwMode_e mode);
+    bool setGain(DRV8301_ShuntAmpGain_e gain);
+    bool setDcCal1(DRV8301_DcCalMode_e mode);
+    bool setDcCal2(DRV8301_DcCalMode_e_ch2 mode);
+    bool setOcToff(DRV8301_OcOffTimeMode_e mode);
 
-    /**
-    * Detect if DRV8301 has fault occurred
-    * @retval   0:no faults 1:has faults
-    */
-    int is_fault(void);
+    // --- Verbose Printers ---
+    void printStatus();
+    void printConfig();
 
-    /**
-    * Read DRV8301's fault value
-    * @retval DRV8301's fault value
-    */
-    int read_fault(void);
-
-    /**
-    * Get DRV8301's chip id
-    * @retval   chip id
-    */
-    int get_id(void);
+    // --- Low-Level Access ---
+    uint16_t read_reg(DRV8301_RegName_e reg);
+    void write_reg(DRV8301_RegName_e reg, uint16_t data);
 
 private:
-    // SPI pins defineder
-    int drv8301_mosi_pin; //!< SPI data output pin
-    int drv8301_miso_pin; //!< SPI data input pin
-    int drv8301_sclk_pin; //!< SPI bit clock pin
-    // SPI functions
-    void spi_delay(void);
-    /** SPI exchange 16bit value */
-    uint16_t spi_transfer(uint16_t txdata);
+    SPIClass* _spi;
+    int _ncs_pin;
+    SPISettings _spi_settings;
+    bool _verbose = false; // <-- ADDED
 
-    // DRV8301 pins defineder
-    int drv8301_cs_pin;
-    int drv8301_en_gate_pin;
-    int drv8301_fault_pin;
-
-    uint16_t drv8301_ctrl_reg1_val;
-    uint16_t drv8301_ctrl_reg2_val;
-    // DRV8301 functions
-    int drv8301_read_reg(uint16_t reg);
-    void drv8301_write_reg(uint16_t reg, uint16_t data);
+    // --- Private Helper Functions ---
+    bool write_field(DRV8301_RegName_e reg, uint16_t mask, uint16_t value);
+    
+    // --- String Converters for Verbose Printing ---
+    const char* getGateCurrentString(uint16_t val);
+    const char* getPWMModeString(uint16_t val);
+    const char* getOcModeString(uint16_t val);
+    const char* getVdsLevelString(uint16_t val);
+    const char* getOcTwModeString(uint16_t val);
+    const char* getGainString(uint16_t val);
+    const char* getDcCal1String(uint16_t val);
+    const char* getDcCal2String(uint16_t val);
+    const char* getOcToffString(uint16_t val);
 };
 
-#endif
+#endif // DRV8301_H

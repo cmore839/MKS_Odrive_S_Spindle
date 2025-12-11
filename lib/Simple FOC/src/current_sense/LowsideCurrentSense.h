@@ -37,14 +37,15 @@ class LowsideCurrentSense: public CurrentSense{
     float brake_duty_cycle = 0.0f;
 
     // Temperature protection settings
+    // These will be set by the main app
     float low_temp_limit = 99.0f;
     float high_temp_limit = 99.1f;
     float motor_cutoff_temp = 60.0f;
 
     // Public function to reset temperature protection
     void resetTemperatureProtection();
-    void linkMotor(BLDCMotor* motor);
-
+    void linkMotorAndLimits(BLDCMotor* _motor, float* _continuous_current_limit_ptr);
+    void setTemperatureLimits(float _low_temp, float _high_temp, float _cutoff_temp); // <-- ADD THIS LINE
 
   private:
     void calibrateOffsets();
@@ -63,9 +64,11 @@ class LowsideCurrentSense: public CurrentSense{
     float brake_target_voltage = 0, brake_p_gain = 0, brake_i_gain = 0, brake_integrator = 0;
 
     // Temperature protection variables
-    float original_current_limit = 0.0f;
+    float original_current_limit = 0.0f; // This will store the PEAK limit
+    float original_continuous_current_limit = 0.0f; // <-- ADD THIS
     bool motor_cutoff = false;
     BLDCMotor* motor = nullptr;
+    float* continuous_current_limit_ptr = nullptr; // <-- ADD THIS
 };
 
 #endif

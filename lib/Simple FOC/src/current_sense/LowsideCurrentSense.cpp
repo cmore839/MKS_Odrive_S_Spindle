@@ -44,8 +44,10 @@ int LowsideCurrentSense::init(){
     void* r = _driverSyncLowSide(driver->params, params);
     if(r == SIMPLEFOC_CURRENT_SENSE_INIT_FAILED) return 0;
     
-    if (motor) {
-        original_current_limit = motor->current_limit;
+    // [MODIFY THIS BLOCK]
+    if (motor && continuous_current_limit_ptr) {
+        original_current_limit = motor->current_limit; // This is the PEAK limit
+        original_continuous_current_limit = *continuous_current_limit_ptr; // This is the CONTINUOUS limit
     }
     
     calibrateOffsets();
@@ -93,14 +95,29 @@ float LowsideCurrentSense::getTemperature() {
     float voltage = (raw_adc * ((Stm32CurrentSenseParams*)params)->adc_voltage_conv);
 
     // This formula assumes the NTC is connected to 3.3V and the fixed resistor is connected to ground.
-    float R_ntc = 3300.0f * (3.3f - voltage) / voltage;
+    // R_ntc = R_fixed * (V_in - V_out) / V_out
+    float R_ntc = 47000.0f * (3.3f - voltage) / voltage; // <-- UPDATED to 47k fixed resistor
 
     // Convert resistance to temperature using the Steinhart-Hart equation
-    float R0 = 10000.0f; // Resistance at reference temperature (25°C)
-    float T0 = 298.15f;  // Reference temperature in Kelvin (25°C)
-    float B = 3950.0f;   // Beta coefficient of the thermistor
+    float R0 = 100000.0f; // Resistance at reference temperature (25°C) // <-- UPDATED to 100k NTC
+    float T0 = 298.15f;    // Reference temperature in Kelvin (25°C)
+    float B = 3950.0f;     // Beta coefficient of the thermistor (B3950)
+    
+    // Check for division by zero or invalid log input
+    if (R_ntc <= 0) {
+        // Handle error, e.g., return a sentinel value or the last known good temp
+        // Returning a fixed value like -273.15 (absolute zero) might be an option
+        return -273.15f; 
+    }
+
     float steinhart = log(R_ntc / R0) / B;
     steinhart += 1.0f / T0;
+    
+    // Check for division by zero
+    if (steinhart == 0) {
+         return -273.15f; // Or another error value
+    }
+    
     steinhart = 1.0f / steinhart;
     steinhart -= 273.15f; // Convert from Kelvin to Celsius
 
@@ -162,8 +179,8 @@ void LowsideCurrentSense::updateBrakeResistor() {
 }
 
 void LowsideCurrentSense::checkTemperature() {
-    if (!motor) {
-        //SIMPLEFOC_DEBUG("Motor not linked, skipping temperature check.");
+    if (!motor || !continuous_current_limit_ptr) { // <-- Check for both
+        //SIMPLEFOC_DEBUG("Motor or limits not linked, skipping temperature check.");
         return;
     }
     if (motor_cutoff) return;
@@ -176,13 +193,16 @@ void LowsideCurrentSense::checkTemperature() {
         //SIMPLEFOC_DEBUG("CUTOFF! Temp exceeded motor_cutoff_temp.");
     } else if (temp > high_temp_limit) {
         motor->current_limit = 0.0f;
+        *continuous_current_limit_ptr = 0.0f; // <-- ADD THIS
         //SIMPLEFOC_DEBUG("WARNING! Temp exceeded high_temp_limit.");
     } else if (temp > low_temp_limit) {
         float scale = 1.0f - (temp - low_temp_limit) / (high_temp_limit - low_temp_limit);
         motor->current_limit = original_current_limit * scale;
+        *continuous_current_limit_ptr = original_continuous_current_limit * scale; // <-- ADD THIS
         //SIMPLEFOC_DEBUG("INFO: Temp in ramp zone. Current limit scaled.");
     } else {
         motor->current_limit = original_current_limit;
+        *continuous_current_limit_ptr = original_continuous_current_limit; // <-- ADD THIS
         //SIMPLEFOC_DEBUG("INFO: Temp is normal.");
     }
 }
@@ -191,10 +211,22 @@ void LowsideCurrentSense::resetTemperatureProtection() {
     if (motor) {
         motor->enable();
     }
+    // Also restore limits
+    if(motor && continuous_current_limit_ptr){
+        motor->current_limit = original_current_limit;
+        *continuous_current_limit_ptr = original_continuous_current_limit;
+    }
     motor_cutoff = false;
     SIMPLEFOC_DEBUG("Temperature protection reset.");
 }
 
-void LowsideCurrentSense::linkMotor(BLDCMotor* _motor) {
+void LowsideCurrentSense::linkMotorAndLimits(BLDCMotor* _motor, float* _continuous_current_limit_ptr) {
     motor = _motor;
+    continuous_current_limit_ptr = _continuous_current_limit_ptr;
+}
+
+void LowsideCurrentSense::setTemperatureLimits(float _low_temp, float _high_temp, float _cutoff_temp) {
+    low_temp_limit = _low_temp;
+    high_temp_limit = _high_temp;
+    motor_cutoff_temp = _cutoff_temp;
 }

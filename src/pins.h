@@ -10,8 +10,8 @@
 #define M0_INL_C PB15
 
 // M0 currnets
-#define M0_IB PC0
-#define M0_IC PC1
+#define PIN_CUR_B PC0
+#define PIN_CUR_C PC1
 
 // Odrive M0 encoder pinout
 #define M0_ENC_A PB4
@@ -27,5 +27,9 @@
 #define SPI3_MOSO PC12
 #define SPI3_CS   PC13
 #define nFAULT    PD2
+
+#define PIN_VBUS PA6
+#define PIN_TEMP_M1 PA2 //External NTC thermistor pin
+#define PIN_BRAKE_RESISTOR PB11
 
 #endif // PINS_H
