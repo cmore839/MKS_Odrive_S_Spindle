@@ -93,14 +93,29 @@ float LowsideCurrentSense::getTemperature() {
     float voltage = (raw_adc * ((Stm32CurrentSenseParams*)params)->adc_voltage_conv);
 
     // This formula assumes the NTC is connected to 3.3V and the fixed resistor is connected to ground.
-    float R_ntc = 3300.0f * (3.3f - voltage) / voltage;
+    // R_ntc = R_fixed * (V_in - V_out) / V_out
+    float R_ntc = 47000.0f * (3.3f - voltage) / voltage; // <-- UPDATED to 47k fixed resistor
 
     // Convert resistance to temperature using the Steinhart-Hart equation
-    float R0 = 10000.0f; // Resistance at reference temperature (25°C)
-    float T0 = 298.15f;  // Reference temperature in Kelvin (25°C)
-    float B = 3950.0f;   // Beta coefficient of the thermistor
+    float R0 = 100000.0f; // Resistance at reference temperature (25°C) // <-- UPDATED to 100k NTC
+    float T0 = 298.15f;    // Reference temperature in Kelvin (25°C)
+    float B = 3950.0f;     // Beta coefficient of the thermistor (B3950)
+    
+    // Check for division by zero or invalid log input
+    if (R_ntc <= 0) {
+        // Handle error, e.g., return a sentinel value or the last known good temp
+        // Returning a fixed value like -273.15 (absolute zero) might be an option
+        return -273.15f; 
+    }
+
     float steinhart = log(R_ntc / R0) / B;
     steinhart += 1.0f / T0;
+    
+    // Check for division by zero
+    if (steinhart == 0) {
+         return -273.15f; // Or another error value
+    }
+    
     steinhart = 1.0f / steinhart;
     steinhart -= 273.15f; // Convert from Kelvin to Celsius
 

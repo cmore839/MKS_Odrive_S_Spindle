@@ -129,7 +129,7 @@ int FOCMotor::characteriseMotor(float voltage, float correction_factor=1.0f){
         setPhaseVoltage(0, voltage/100.0*((float)i), current_electric_angle);
         _delay(3);
     }
-    _delay(10);
+    _delay(50);
     PhaseCurrent_s r_currents_raw = current_sense->readAverageCurrents();
     DQCurrent_s r_currents = current_sense->getDQCurrents(current_sense->getABCurrents(r_currents_raw), current_electric_angle);
 
@@ -137,7 +137,7 @@ int FOCMotor::characteriseMotor(float voltage, float correction_factor=1.0f){
     setPhaseVoltage(0, 0, current_electric_angle);
     
 
-    if (fabsf(r_currents.d - zerocurrent.d) < 0.2f)
+    if (fabsf(r_currents.d - zerocurrent.d) < 0.01f)
     {
       SIMPLEFOC_DEBUG("ERR: MOT: Motor characterisation failed: measured current too low");
       return 3;
