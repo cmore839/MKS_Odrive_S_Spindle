@@ -2,14 +2,14 @@
 
 SPIClass spi3(SPI3_MOSO, SPI3_MISO, SPI3_SCL);
 LowsideCurrentSense CS1 = LowsideCurrentSense(SHUNT_RESISTOR, CSA_GAIN, _NC, PIN_CUR_B, PIN_CUR_C, PIN_VBUS, VBUS_DIVIDER_RATIO, PIN_TEMP_M1);
-BLDCMotor M1 = BLDCMotor(2, phase_resistance, kv_rating, q_phase_inductance);
+//BLDCMotor M1 = BLDCMotor(2, phase_resistance, kv_rating, q_phase_inductance);
 BLDCDriver6PWM DR1 = BLDCDriver6PWM(M0_INH_A,M0_INL_A, M0_INH_B,M0_INL_B, M0_INH_C,M0_INL_C);
-STM32HWEncoder E1 = STM32HWEncoder(1110, M0_ENC_A, M0_ENC_B, _NC);
-//BLDCMotor M1 = BLDCMotor(5, 0.2816, 145, 0.00037);
-//STM32HWEncoder E1 = STM32HWEncoder(16384, M0_ENC_A, M0_ENC_B, _NC);
-//StepDirListener SD1 = StepDirListener(PA2, PA3, 0.006135f);//2*PI/1024=); // For 4096 steps/rev encoder
-//void onStep() { SD1.handle(); } 
-
+//STM32HWEncoder E1 = STM32HWEncoder(1110, M0_ENC_A, M0_ENC_B, _NC);
+BLDCMotor M1 = BLDCMotor(5, 0.2816, 145, 0.00037);
+STM32HWEncoder E1 = STM32HWEncoder(16384, M0_ENC_A, M0_ENC_B, _NC);
+StepDirListener SD1 = StepDirListener(PA1, PA3, 0.0122718f);//2*PI/512= 0.0122718
+void onStep() { SD1.handle(); } 
+LowPassFilter filter = LowPassFilter(0.50); // Tf = 500ms
 
 void setupSerial() {
   Serial.begin(115200);
@@ -74,17 +74,17 @@ void setupDRV8301(bool verbose) {
 
 void setupMotorParameters() {
   DR1.pwm_frequency = 25000;
-  DR1.voltage_power_supply = 24.0;
-  DR1.voltage_limit = 24.0;
-//   DR1.voltage_power_supply = 56.0;
-//   DR1.voltage_limit = 56.0;
+//   DR1.voltage_power_supply = 24.0;
+//   DR1.voltage_limit = 24.0;
+  DR1.voltage_power_supply = 56.0;
+  DR1.voltage_limit = 56.0;
   M1.motion_downsample = 10; // run the control loop at each foc loop
-  M1.voltage_limit = 24.0;   // [V]
-  //M1.voltage_limit = 56.0;   // [V]
+//   M1.voltage_limit = 24.0;   // [V]
+  M1.voltage_limit = 56.0;   // [V]
   M1.current_limit = peak_current_limit; // FOC hard limit is the absolute PEAK
-  M1.voltage_sensor_align = 3.0;
+  M1.voltage_sensor_align = 6.0;
   M1.acceleration_limit = 500.0; //velocity mode only
-  M1.velocity_limit = 50; // [rad/s]
+  M1.velocity_limit = 999999; // [rad/s]
   M1.torque_controller = TorqueControlType::foc_current;
   M1.controller = MotionControlType::angle;
   M1.foc_modulation = FOCModulationType::SpaceVectorPWM;
@@ -92,16 +92,16 @@ void setupMotorParameters() {
 
 void setupMotorPIDs() {
   // velocity PID controller parameters
-  M1.PID_velocity.P = 0.05;
-  M1.PID_velocity.I = 0.0;
-  //M1.PID_velocity.I = 1.0;
+  M1.PID_velocity.P = 0.5;
+  //M1.PID_velocity.I = 0.0;
+  M1.PID_velocity.I = 1.0;
   M1.PID_velocity.D = 0;
   M1.PID_velocity.output_ramp = 0;
   M1.LPF_velocity.Tf = 0;
    
   // angle PID controller 
-  M1.P_angle.P = 350.0;
-  //M1.P_angle.P = 20.0;
+  //M1.P_angle.P = 350.0;
+  M1.P_angle.P = 50.0;
   M1.P_angle.I = 0;
   M1.P_angle.D = 0;
   M1.P_angle.output_ramp = 0;
@@ -138,7 +138,7 @@ void linkMotorComponents() {
   float measured_vbus = CS1.getVbusVoltage();
   
   // Safety check
-  if (measured_vbus < 3.0f || measured_vbus > 50.0f) { 
+  if (measured_vbus < 3.0f || measured_vbus > 60.0f) { 
       measured_vbus = DR1.voltage_power_supply; // Stick with the 24V default
       Serial.println(F("WARN: VBUS read failed, using default 24V!"));
   }
@@ -170,7 +170,7 @@ void updateExternalSensors() {
     VBUS_S = CS1.getVbusVoltage();
     CS1.updateBrakeResistor();
     CS1.checkTemperature();
-    Temp_M1 = CS1.getTemperature();
+    Temp_M1 = filter(CS1.getTemperature());
 }
 
 /**
@@ -455,6 +455,8 @@ void setupSoftLimits() {
 
 void setup(){
   SystemClock_Config();
+  pinMode(PC9,OUTPUT);
+  digitalWrite(PC9,HIGH);
   delay(1000);
   setupSerial();
   setupDRV8301(true); // 'true' for verbose setup, 'false' for quiet
@@ -465,9 +467,10 @@ void setup(){
   // M1.characteriseMotor(3.0f);
   Serial.println(F("Motor ready."));
   //setupSoftLimits();
-  // SD1.init();
-  // SD1.enableInterrupt(onStep);
-  // SD1.attach(&target);
+  target = M1.shaft_angle;
+  SD1.init();
+  SD1.enableInterrupt(onStep);
+  SD1.attach(&target);
   delay(100);
 }
 

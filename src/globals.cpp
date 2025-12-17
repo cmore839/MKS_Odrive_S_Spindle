@@ -6,20 +6,20 @@ DRV8301 drv;
 // Important Globals
 // --- Motor Parameters ---
 float current_bandwidth = 200; //Hz
-float phase_resistance = 3.24*2; // each phase resistance is 3.24 Ohm, total is 6.48 Ohm
-float d_phase_inductance = 0.0086;
-float q_phase_inductance = 0.00108;
+float phase_resistance = 0.2816; // each phase resistance is 3.24 Ohm, total is 6.48 Ohm
+float d_phase_inductance = 0.00037;
+float q_phase_inductance = 0.00037;
 float kv_rating = _NC; // RPM/V
-float continuous_current_limit = 2.0f; // [Amps]
-float peak_current_limit = 5.0f;       // [Amps] Max allowed peak current
+float continuous_current_limit = 10.0f; // [Amps]
+float peak_current_limit = 15.0f;       // [Amps] Max allowed peak current
 
 // --- Safety Pack Parameters ---
-float max_following_error = 10.0f; // [rad/s or rad]
-int max_temp = 40; // [Celsius]
+float max_following_error = 30.0f; // [rad/s or rad]
+int max_temp = 60; // [Celsius]
 // --- Soft Limit Parameters ---
 // Set 'true' to run the full end-to-end calibration on next boot.
 // After, set 'false' and fill in the 'known_stroke_distance' with the value from the serial monitor.
-bool run_calibration_on_startup = true; 
+bool run_calibration_on_startup = false; 
 float calibration_velocity = 4.0f;      // [rad/s] Low velocity for homing/calibration
 float calibration_current_limit = 0.5f; // [Amps] Max current during calibration/homing
 float calibration_following_error = 0.1f; // [rad] Max following error during calibration/homing
@@ -28,9 +28,9 @@ float calibration_stroke_buffer = 0.5f;     // [rad] Buffer to set soft limits i
 float known_stroke_distance = 10.0f;     // [rad] SET THIS after calibration, e.g., 20.45
 
 // --- Temperature Limits ---
-float low_temp_limit = 45.0f;      // [Celsius] Start scaling down current
-float high_temp_limit = 55.0f;     // [Celsius] Scale current to 0
-float motor_cutoff_temp = 60.0f;   // [Celsius] Disable motor
+float low_temp_limit = 80.0f;      // [Celsius] Start scaling down current
+float high_temp_limit = 90.0f;     // [Celsius] Scale current to 0
+float motor_cutoff_temp = 95.0f;   // [Celsius] Disable motor
 
 // Less Important Globals
 // --- Loop Timing & Control ---
@@ -41,8 +41,8 @@ int loopiter = 10; // Run control loop every 10 main loops
 
 // --- Safety Pack Globals ---
 bool drive_disabled = false; // Fault flag
-unsigned long peak_current_timeout_ms = 1000; // [ms]
-unsigned long max_following_error_timeout_ms = 100; // [ms]
+unsigned long peak_current_timeout_ms = 5000; // [ms]
+unsigned long max_following_error_timeout_ms = 5000; // [ms]
 
 // --- Brake Resistor Gains ---
 float BRAKE_P_GAIN =  0.1f;
@@ -52,8 +52,8 @@ float BRAKE_I_GAIN =  0.05f;
 int VBUS_DIVIDER_RATIO = 19;
 
 // --- Sensing Parameters for MKS ODRIVE-S ---
-float SHUNT_RESISTOR = 0.005f; // 5 milliohms CUSTOM
-//float SHUNT_RESISTOR = 0.0005f; // 0.5 milliohms DEFAULT
+//float SHUNT_RESISTOR = 0.005f; // 5 milliohms CUSTOM
+float SHUNT_RESISTOR = 0.0005f; // 0.5 milliohms DEFAULT
 int CSA_GAIN = 80; // Current Sense Amplifier Gain THIS MUST MATCH THE HARDWARE SETTING
 
 
