@@ -1,0 +1,93 @@
+#include <Arduino.h>
+
+// =============================================================
+// 1. CLOCK CONFIGURATION
+//    Target: STM32F405
+//    Crystal (HSE): 8 MHz
+//    CPU Speed: 168 MHz
+//    USB Speed: 48 MHz (Critical for connection stability)
+// =============================================================
+extern "C" void SystemClock_Config(void) {
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+
+  // Enable Power Control Clock
+  __HAL_RCC_PWR_CLK_ENABLE();
+  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+
+  // Configure Oscillator (HSE = 8MHz External Crystal)
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  
+  // PLL Math:
+  // Input: 8MHz
+  // M (Div) = 8  --> 1 MHz (VCO Input)
+  // N (Mul) = 336 --> 336 MHz (VCO Output)
+  // P (Div) = 2  --> 168 MHz (System Clock)
+  // Q (Div) = 7  --> 48 MHz (USB Clock)
+  RCC_OscInitStruct.PLL.PLLM = 8;
+  RCC_OscInitStruct.PLL.PLLN = 336;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2; 
+  RCC_OscInitStruct.PLL.PLLQ = 7;             
+  
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) { 
+    while(1); // Error Trap 
+  }
+
+  // Configure Bus Clocks
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1; // AHB  = 168 MHz
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;  // APB1 = 42 MHz
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;  // APB2 = 84 MHz
+
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5) != HAL_OK) { 
+    while(1); // Error Trap
+  }
+}
+
+// =============================================================
+// 2. BUFFER SETTINGS
+//    512 bytes is the "Sweet Spot". 
+//    Large enough for speed, small enough to fit in the STM32's 
+//    internal USB FIFO without crashing.
+// =============================================================
+#define PACKET_SIZE 512
+uint8_t packet[PACKET_SIZE];
+
+void setup() {
+  // Fill buffer with dummy data ('F' for Fast)
+  memset(packet, 'F', PACKET_SIZE);
+  
+  // Optional: Add newlines at the end so it looks readable if you 
+  // check it with a normal terminal (PuTTY/CoolTerm)
+  packet[PACKET_SIZE-2] = '\r';
+  packet[PACKET_SIZE-1] = '\n';
+
+  // Initialize Native USB Serial
+  // Baud rate (115200) is ignored by USB CDC, but required by API
+  Serial.begin(115200);
+
+  // CRITICAL: Wait for PC to open the port.
+  // If we start blasting before the PC is ready, the internal buffer
+  // can overflow immediately and lock up the chip ("Zombie State").
+  while (!Serial) {
+    delay(10);
+  }
+}
+
+void loop() {
+  // ===========================================================
+  // 3. HIGH SPEED LOOP
+  //    We DO NOT check "if (Serial.availableForWrite())".
+  //    That check caused the 0 MB/s deadlock.
+  //    
+  //    Instead, we rely on the driver's blocking behavior.
+  //    If the buffer is full, Serial.write() will pause execution
+  //    until space is cleared, ensuring max throughput.
+  // ===========================================================
+  Serial.write(packet, PACKET_SIZE);
+}

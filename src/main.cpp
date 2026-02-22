@@ -9,6 +9,8 @@ STM32HWEncoder E1 = STM32HWEncoder(1110, M0_ENC_A, M0_ENC_B, _NC);
 //STM32HWEncoder E1 = STM32HWEncoder(16384, M0_ENC_A, M0_ENC_B, _NC);
 //StepDirListener SD1 = StepDirListener(PA2, PA3, 0.006135f);//2*PI/1024=); // For 4096 steps/rev encoder
 //void onStep() { SD1.handle(); } 
+float osc_distance = 0.0f;   // The target distance (e.g., 10.0 radians)
+float osc_frequency = 0.0f;  // The frequency in Hz (e.g., 0.5 Hz)
 
 
 void setupSerial() {
@@ -82,25 +84,26 @@ void setupMotorParameters() {
   M1.voltage_limit = 24.0;   // [V]
   //M1.voltage_limit = 56.0;   // [V]
   M1.current_limit = peak_current_limit; // FOC hard limit is the absolute PEAK
-  M1.voltage_sensor_align = 3.0;
+  M1.voltage_sensor_align = 6.0;
   M1.acceleration_limit = 500.0; //velocity mode only
-  M1.velocity_limit = 50; // [rad/s]
+  M1.velocity_limit = 500; // [rad/s]
   M1.torque_controller = TorqueControlType::foc_current;
   M1.controller = MotionControlType::angle;
   M1.foc_modulation = FOCModulationType::SpaceVectorPWM;
+  E1.min_elapsed_time = 0.00005f; // 20 kHz update rate
 }
 
 void setupMotorPIDs() {
   // velocity PID controller parameters
-  M1.PID_velocity.P = 0.05;
-  M1.PID_velocity.I = 0.0;
+  M1.PID_velocity.P = 0.03;
+  M1.PID_velocity.I = 3.0;
   //M1.PID_velocity.I = 1.0;
   M1.PID_velocity.D = 0;
   M1.PID_velocity.output_ramp = 0;
   M1.LPF_velocity.Tf = 0;
    
   // angle PID controller 
-  M1.P_angle.P = 350.0;
+  M1.P_angle.P = 20.0;
   //M1.P_angle.P = 20.0;
   M1.P_angle.I = 0;
   M1.P_angle.D = 0;
@@ -237,7 +240,7 @@ void resetDriveFault() {
 
 /**
  * @brief Runs a stall-based end-to-end calibration. BLOCKING.
- * This now uses ANGLE mode with a ramping target to trigger on FOLLOWING ERROR.
+ * Added Feed-Forward to prevent false stall detection due to tracking lag.
  */
 void calibrateAxis() {
     Serial.println(F("--- Starting Axis Calibration (Angle Mode) ---"));
@@ -246,57 +249,70 @@ void calibrateAxis() {
 
     // Store original settings
     MotionControlType orig_controller = M1.controller;
-    float orig_target = target;
     float orig_vel_limit = M1.velocity_limit;
     float orig_current_limit = peak_current_limit;
-    float orig_cont_current_limit = continuous_current_limit; // <-- Store continuous limit
+    float orig_cont_current_limit = continuous_current_limit;
     float orig_following_error = max_following_error;
 
     // Set temporary "stall detection" limits
-    Serial.println(F("Setting stall detection limits (High Current, Low Follow Error)..."));
+    Serial.println(F("Setting stall detection limits..."));
     peak_current_limit = calibration_current_limit;
     M1.current_limit = calibration_current_limit; 
-    continuous_current_limit = calibration_current_limit; // <-- Set continuous limit high
-    max_following_error = calibration_following_error;  // <-- Set follow error low
-    M1.controller = MotionControlType::angle; // <-- Use ANGLE mode
+    continuous_current_limit = calibration_current_limit; 
+    max_following_error = calibration_following_error;
+    M1.controller = MotionControlType::angle; 
     M1.velocity_limit = calibration_velocity; 
     
     // --- Move to Negative End ---
     Serial.println(F("Moving to negative end stop..."));
-    target = M1.shaft_angle; // Start ramp from current position
+    target = M1.shaft_angle; 
     resetDriveFault();
     last_run_us = micros();
     
+    // 1. Set Feed-Forward (Negative direction)
+    M1.feed_forward_velocity = -calibration_velocity; // <--- ADDED FF
+
     while (!drive_disabled) {
         dt_s = (micros() - last_run_us) * 1e-6f;
-        if(dt_s < 0.00005f) continue; // 20kHz loop
+        if(dt_s < 0.00005f) continue; 
         last_run_us = micros();
 
-        target -= calibration_velocity * dt_s; // Ramp target negative
+        target -= calibration_velocity * dt_s; 
         M1.loopFOC();
         M1.move(target);
         checkSafetyPack(); 
     }
-    float limit_1_angle = M1.shaft_angle; // Record actual stalled position
+    
+    // 2. Reset Feed-Forward immediately after stop
+    M1.feed_forward_velocity = 0.0f; // <--- RESET FF
+
+    float limit_1_angle = M1.shaft_angle; 
     Serial.print(F("Found negative end stop at [rad]: ")); Serial.println(limit_1_angle);
 
     // --- Move to Positive End ---
     Serial.println(F("Moving to positive end stop..."));
-    target = M1.shaft_angle; // Start ramp from current position
-    resetDriveFault(); // Reset fault from first stall
+    target = M1.shaft_angle; 
+    resetDriveFault(); 
     last_run_us = micros();
+
+    // 3. Set Feed-Forward (Positive direction)
+    M1.feed_forward_velocity = calibration_velocity; // <--- ADDED FF
 
     while (!drive_disabled) {
         dt_s = (micros() - last_run_us) * 1e-6f;
-        if(dt_s < 0.00005f) continue; // 20kHz loop
+        if(dt_s < 0.00005f) continue; 
         last_run_us = micros();
 
-        target += calibration_velocity * dt_s; // Ramp target positive
+        target += calibration_velocity * dt_s; 
         M1.loopFOC();
         M1.move(target);
         checkSafetyPack();
     }
-    float limit_2_angle = M1.shaft_angle; // Record actual stalled position
+
+    // 4. Reset Feed-Forward immediately after stop
+    M1.feed_forward_velocity = 0.0f; // <--- RESET FF
+
+    float limit_2_angle = M1.shaft_angle; 
     Serial.print(F("Found positive end stop at [rad]: ")); Serial.println(limit_2_angle);
 
     // Calculate stroke
@@ -306,15 +322,15 @@ void calibrateAxis() {
     Serial.println(F(">>> Copy this value to 'known_stroke_distance' in globals.cpp"));
     Serial.println(F("----------------------------------"));
 
-
     // --- Home the axis ---
     Serial.println(F("Homing to negative end stop..."));
-    resetDriveFault(); // Reset fault from second stall
+    resetDriveFault(); 
     
-    // Set "homing move" limits (High Follow Error)
+    // For the return move (step response), we do NOT use Feed-Forward 
+    // because we are just stepping to a position, not ramping continuously.
     max_following_error = homing_following_error; 
     
-    target = limit_1_angle; // Go to the recorded stall point
+    target = limit_1_angle; 
     long homing_start_ms = millis();
     
     while (abs(M1.shaft_angle - target) > 0.05f) { 
@@ -339,12 +355,8 @@ void calibrateAxis() {
         soft_limit_negative = 0.0f + calibration_stroke_buffer;
         soft_limit_positive = total_stroke - calibration_stroke_buffer;
 
-        if (soft_limit_positive <= soft_limit_negative) {
-            Serial.println(F("WARN: Stroke buffer is too large! Disabling soft limits."));
-            soft_limits_enabled = false;
-        } else {
-            soft_limits_enabled = true;
-        }
+        if (soft_limit_positive <= soft_limit_negative) soft_limits_enabled = false;
+        else soft_limits_enabled = true;
 
         Serial.print(F("Calibration complete. New limits: "));
         Serial.print(soft_limit_negative); Serial.print(F(" to ")); Serial.println(soft_limit_positive);
@@ -353,19 +365,22 @@ void calibrateAxis() {
     // --- Restore original settings ---
     Serial.println(F("Restoring original limits..."));
     M1.controller = orig_controller;
-    target = 0; // Set target to 0 (new home)
+    target = 0; 
     M1.move(0); 
     M1.velocity_limit = orig_vel_limit;
     peak_current_limit = orig_current_limit;
     M1.current_limit = orig_current_limit; 
-    continuous_current_limit = orig_cont_current_limit; // <-- Restore continuous limit
+    continuous_current_limit = orig_cont_current_limit; 
     max_following_error = orig_following_error;
-    resetDriveFault(); // Final reset
+    
+    // Ensure FF is definitely zero before returning to main loop
+    M1.feed_forward_velocity = 0.0f; 
+    resetDriveFault(); 
 }
 
 /**
  * @brief Runs a stall-based homing sequence to the negative end. BLOCKING.
- * This now uses ANGLE mode with a ramping target to trigger on FOLLOWING ERROR.
+ * Added Feed-Forward to prevent false stall detection.
  */
 void homeAxis() {
     Serial.println(F("--- Starting Homing Sequence (Angle Mode) ---"));
@@ -374,30 +389,32 @@ void homeAxis() {
 
     // Store original settings
     MotionControlType orig_controller = M1.controller;
-    float orig_target = target;
     float orig_vel_limit = M1.velocity_limit;
     float orig_current_limit = peak_current_limit;
-    float orig_cont_current_limit = continuous_current_limit; // <-- Store continuous limit
+    float orig_cont_current_limit = continuous_current_limit; 
     float orig_following_error = max_following_error;
 
     // Set temporary "stall detection" limits
-    Serial.println(F("Setting homing stall limits (High Current, Low Follow Error)..."));
+    Serial.println(F("Setting homing stall limits..."));
     peak_current_limit = calibration_current_limit;
     M1.current_limit = calibration_current_limit; 
-    continuous_current_limit = calibration_current_limit; // <-- Set continuous limit high
-    max_following_error = calibration_following_error;  // <-- Set follow error low
-    M1.controller = MotionControlType::angle; // <-- Use ANGLE mode
+    continuous_current_limit = calibration_current_limit; 
+    max_following_error = calibration_following_error; 
+    M1.controller = MotionControlType::angle; 
     M1.velocity_limit = calibration_velocity; 
     
     // --- Move to Negative End ---
     Serial.println(F("Moving to negative end stop..."));
-    target = M1.shaft_angle; // Start ramp from current position
+    target = M1.shaft_angle; 
     resetDriveFault();
     last_run_us = micros();
     
+    // 1. Set Feed-Forward (Negative direction)
+    M1.feed_forward_velocity = -calibration_velocity; // <--- ADDED FF
+
     while (!drive_disabled) {
         dt_s = (micros() - last_run_us) * 1e-6f;
-        if(dt_s < 0.0001f) continue; // 10kHz loop
+        if(dt_s < 0.0001f) continue; 
         last_run_us = micros();
 
         target -= calibration_velocity * dt_s; // Ramp target negative
@@ -405,6 +422,10 @@ void homeAxis() {
         M1.move(target);
         checkSafetyPack(); 
     }
+    
+    // 2. Reset Feed-Forward immediately
+    M1.feed_forward_velocity = 0.0f; // <--- RESET FF
+
     float home_angle = M1.shaft_angle;
     Serial.print(F("Found home at [rad]: ")); Serial.println(home_angle);
 
@@ -416,12 +437,8 @@ void homeAxis() {
     soft_limit_negative = 0.0f + calibration_stroke_buffer;
     soft_limit_positive = known_stroke_distance - calibration_stroke_buffer;
 
-    if (soft_limit_positive <= soft_limit_negative) {
-        Serial.println(F("WARN: Stroke buffer is too large! Disabling soft limits."));
-        soft_limits_enabled = false;
-    } else {
-        soft_limits_enabled = true;
-    }
+    if (soft_limit_positive <= soft_limit_negative) soft_limits_enabled = false;
+    else soft_limits_enabled = true;
 
     Serial.print(F("Homing complete. Limits set: "));
     Serial.print(soft_limit_negative); Serial.print(F(" to ")); Serial.println(soft_limit_positive);
@@ -429,13 +446,16 @@ void homeAxis() {
     // --- Restore original settings ---
     Serial.println(F("Restoring original limits..."));
     M1.controller = orig_controller;
-    target = 0; // Set target to 0 (new home)
+    target = 0; 
     M1.move(0); 
     M1.velocity_limit = orig_vel_limit;
     peak_current_limit = orig_current_limit;
     M1.current_limit = orig_current_limit;
-    continuous_current_limit = orig_cont_current_limit; // <-- Restore continuous limit
+    continuous_current_limit = orig_cont_current_limit; 
     max_following_error = orig_following_error;
+    
+    // Ensure FF is zero
+    M1.feed_forward_velocity = 0.0f;
     resetDriveFault();
 }
 
@@ -464,7 +484,7 @@ void setup(){
   // Serial.println(F("Motor characterising..."));
   // M1.characteriseMotor(3.0f);
   Serial.println(F("Motor ready."));
-  //setupSoftLimits();
+  setupSoftLimits();
   // SD1.init();
   // SD1.enableInterrupt(onStep);
   // SD1.attach(&target);
@@ -484,7 +504,50 @@ void loop(){
   if (loopcounter == loopiter){
     start = micros();
   }
-  
+// --- 2. Calculate Oscillator Target (Triangle Wave with FeedForward) ---
+  static unsigned long last_osc_us = micros();
+  unsigned long now_us = micros();
+  float dt = (now_us - last_osc_us) * 1e-6f;
+  last_osc_us = now_us;
+
+  // Only run oscillator if frequency is set
+  if (osc_frequency > 0.001f) {
+    // 1. Calculate required speed to achieve Frequency & Distance
+    // Speed = Total Distance per cycle (2 * D) * Frequency
+    float ramp_speed = 2.0f * osc_distance * osc_frequency;
+    
+    // Safety: Clamp speed to motor limits to prevent physics violations
+    if (ramp_speed > M1.velocity_limit) ramp_speed = M1.velocity_limit;
+
+    // 2. State Machine for Triangle Wave
+    // We use a static flag to track direction: true = going up, false = going down
+    static bool moving_up = true;
+
+    if (moving_up) {
+      target += ramp_speed * dt;
+      M1.feed_forward_velocity = ramp_speed; // <--- POSITIVE FF
+
+      // Check if we hit the top
+      if (target >= osc_distance) {
+        target = osc_distance; // Cap it
+        moving_up = false;     // Switch direction
+      }
+    } 
+    else {
+      target -= ramp_speed * dt;
+      M1.feed_forward_velocity = -ramp_speed; // <--- NEGATIVE FF
+
+      // Check if we hit the bottom
+      if (target <= soft_limit_negative) {
+        target = soft_limit_negative;    // Cap it
+        moving_up = true; // Switch direction
+      }
+    }
+  } 
+  else {
+    // Oscillator is off: Reset FF and rely on manual target
+    M1.feed_forward_velocity = 0.0f;
+  }
   // --- Core FOC Loops ---
   M1.loopFOC();
 

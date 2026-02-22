@@ -19,10 +19,10 @@ int max_temp = 40; // [Celsius]
 // --- Soft Limit Parameters ---
 // Set 'true' to run the full end-to-end calibration on next boot.
 // After, set 'false' and fill in the 'known_stroke_distance' with the value from the serial monitor.
-bool run_calibration_on_startup = true; 
+bool run_calibration_on_startup = false; 
 float calibration_velocity = 4.0f;      // [rad/s] Low velocity for homing/calibration
-float calibration_current_limit = 0.5f; // [Amps] Max current during calibration/homing
-float calibration_following_error = 0.1f; // [rad] Max following error during calibration/homing
+float calibration_current_limit = 1.0f; // [Amps] Max current during calibration/homing
+float calibration_following_error = 0.25f; // [rad] Max following error during calibration/homing
 float homing_following_error = 100.0f;      // [rad] Set HIGH to allow final "go to zero" move
 float calibration_stroke_buffer = 0.5f;     // [rad] Buffer to set soft limits inside the hard stops
 float known_stroke_distance = 10.0f;     // [rad] SET THIS after calibration, e.g., 20.45
@@ -42,7 +42,7 @@ int loopiter = 10; // Run control loop every 10 main loops
 // --- Safety Pack Globals ---
 bool drive_disabled = false; // Fault flag
 unsigned long peak_current_timeout_ms = 1000; // [ms]
-unsigned long max_following_error_timeout_ms = 100; // [ms]
+unsigned long max_following_error_timeout_ms = 500; // [ms]
 
 // --- Brake Resistor Gains ---
 float BRAKE_P_GAIN =  0.1f;
